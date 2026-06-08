@@ -152,3 +152,37 @@ fn write_todos(slug: &str, todos: &[Todo]) {
         let _ = fs::write(todos_path(slug), json);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn todo_uses_camel_case_and_omits_missing_done_at() {
+        let todo = Todo {
+            id: "ID".into(),
+            text: "review".into(),
+            done: false,
+            created_at: "2026-06-08T20:00:00Z".into(),
+            done_at: None,
+        };
+        let json = serde_json::to_string(&todo).unwrap();
+        assert!(json.contains("\"createdAt\""));
+        assert!(!json.contains("doneAt"));
+    }
+
+    #[test]
+    fn todo_reads_back_without_done_at() {
+        let json = r#"{"id":"ID","text":"review","done":true,"createdAt":"2026-06-08T20:00:00Z"}"#;
+        let todo: Todo = serde_json::from_str(json).unwrap();
+        assert!(todo.done);
+        assert!(todo.done_at.is_none());
+    }
+
+    #[test]
+    fn now_is_second_precision_utc() {
+        let stamp = now();
+        assert_eq!(stamp.len(), 20);
+        assert!(stamp.ends_with('Z'));
+    }
+}
