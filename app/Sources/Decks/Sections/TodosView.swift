@@ -7,12 +7,21 @@ struct TodosView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            List {
-                ForEach(store.todos(slug)) { todo in
-                    row(todo)
+            if store.todos(slug).isEmpty {
+                ContentUnavailableView(
+                    "No to-dos",
+                    systemImage: "checklist",
+                    description: Text("Add things to do or review for this deck.")
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List {
+                    ForEach(store.todos(slug)) { todo in
+                        row(todo)
+                    }
                 }
+                .listStyle(.inset)
             }
-            .listStyle(.inset)
 
             composer
         }

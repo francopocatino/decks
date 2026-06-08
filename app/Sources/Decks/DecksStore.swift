@@ -91,6 +91,8 @@ final class DecksStore {
 
     func todos(_ slug: String) -> [Todo] { todosByDeck[slug] ?? [] }
 
+    func openTodoCount(_ slug: String) -> Int { todos(slug).filter { !$0.done }.count }
+
     func addTodo(_ text: String, to slug: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }

@@ -7,6 +7,7 @@ struct DeckDetailView: View {
     var body: some View {
         content
             .navigationTitle(deck.name)
+            .background { sectionShortcuts }
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     Picker("Section", selection: $section) {
@@ -26,6 +27,14 @@ struct DeckDetailView: View {
         case .todos: TodosView(slug: deck.slug)
         case .notes: NotesView(slug: deck.slug)
         case .links: LinksView(slug: deck.slug)
+        }
+    }
+
+    private var sectionShortcuts: some View {
+        ForEach(Array(DeckSection.allCases.enumerated()), id: \.element.id) { index, value in
+            Button("") { section = value }
+                .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")))
+                .hidden()
         }
     }
 }
