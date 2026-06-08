@@ -7,7 +7,11 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[derive(Parser)]
-#[command(name = "decks", version, about = "Per-company notes, shared with the Decks app")]
+#[command(
+    name = "decks",
+    version,
+    about = "Per-company notes, shared with the Decks app"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -55,7 +59,10 @@ fn main() {
 
 fn list() {
     for deck in read_decks() {
-        let open = read_todos(&deck.slug).iter().filter(|todo| !todo.done).count();
+        let open = read_todos(&deck.slug)
+            .iter()
+            .filter(|todo| !todo.done)
+            .count();
         println!("{:<18} {:>2} open  ({})", deck.name, open, deck.slug);
     }
 }
