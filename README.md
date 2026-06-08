@@ -65,6 +65,8 @@ cargo run -- show acme --json
 
 To keep work contexts isolated, scope a server to a single deck with `--deck <slug>` (or the `DECKS_DECK` env var). A scoped server only ever sees that deck: it cannot list, read or write any other, so separate jobs never leak into one another.
 
+Generate the snippet for a deck with `decks mcp-config <slug>`.
+
 ```json
 {
   "mcpServers": {
