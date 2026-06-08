@@ -83,6 +83,7 @@ struct RootView: View {
 
     private func deckRow(_ deck: Deck) -> some View {
         Label(deck.name, systemImage: deck.isArchived ? "archivebox" : "rectangle.stack")
+            .badge(badge(for: deck))
             .tag(deck.slug)
             .contextMenu {
                 Button("Rename") { startRename(deck) }
@@ -94,6 +95,11 @@ struct RootView: View {
                 Divider()
                 Button("Delete", role: .destructive) { pendingDelete = deck }
             }
+    }
+
+    private func badge(for deck: Deck) -> Text? {
+        let count = store.openTodoCount(deck.slug)
+        return count > 0 ? Text("\(count)") : nil
     }
 
     private func startRename(_ deck: Deck) {
