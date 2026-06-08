@@ -46,11 +46,17 @@ On launch the app checks GitHub for the latest release and shows a banner when a
 
 ## Use the CLI
 
+The CLI reads and writes the same files as the app, and is the surface meant for automation.
+
 ```
 cd cli
-cargo run -- list
-cargo run -- add acme "review PR 214"
-cargo run -- done acme 0
+cargo run -- new "Acme"                 # create a deck
+cargo run -- add acme "review PR 214"   # add a to-do
+cargo run -- done acme 0                # toggle a to-do
+cargo run -- note acme "use sqlite"     # append a note
+cargo run -- daily acme "shipped auth"  # add a dated daily entry
+cargo run -- list --json                # machine-readable output
+cargo run -- show acme --json
 ```
 
 ## Status
