@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build macOS app
+        run: swift build --package-path app
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Rust format
+        working-directory: cli
+        run: cargo fmt --check
+
+      - name: Rust clippy
+        working-directory: cli
+        run: cargo clippy -- -D warnings
+
+      - name: Rust tests
+        working-directory: cli
+        run: cargo test
