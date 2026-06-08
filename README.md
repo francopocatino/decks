@@ -78,6 +78,12 @@ Generate the snippet for a deck with `decks mcp-config <slug>`.
 }
 ```
 
+## Per-deck identity
+
+Each deck can carry its own identity: a git provider (GitHub or GitLab) and commit email, the repositories it owns, and which AI account it uses. Open it from the deck's context menu (Settings…).
+
+AI accounts are managed in the app settings (Cmd+,) as named entities; several decks can share one account, or a deck can keep its own. API keys live in the macOS Keychain, never in `~/.decks`.
+
 ## Status
 
 Early. The app covers the four sections and deck switching; the CLI covers listing and to-dos. Next: notes and daily from the CLI, and a quick-capture window.
