@@ -1,5 +1,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command as Process;
 
 use clap::{Parser, Subcommand};
 use jiff::Timestamp;
@@ -39,6 +40,10 @@ enum Command {
     Daily { slug: String, text: Vec<String> },
     /// Print Claude MCP config for a server scoped to one deck
     McpConfig { slug: String },
+    /// Summarize today's git activity in the deck's repos into its daily log
+    Worklog { slug: String },
+    /// Print the deck slug that owns a repository path
+    Which { path: String },
 }
 
 #[derive(Serialize, Deserialize)]
@@ -78,6 +83,17 @@ struct DeckSummary {
     open_todos: usize,
 }
 
+#[derive(Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct Profile {
+    #[serde(default)]
+    git_provider: String,
+    #[serde(default)]
+    author_email: String,
+    #[serde(default)]
+    repos: Vec<String>,
+}
+
 fn main() {
     let cli = Cli::parse();
     match cli.command {
@@ -89,6 +105,8 @@ fn main() {
         Command::Note { slug, text } => note(&slug, text.join(" ")),
         Command::Daily { slug, text } => daily(&slug, text.join(" ")),
         Command::McpConfig { slug } => mcp_config(&slug),
+        Command::Worklog { slug } => worklog(&slug),
+        Command::Which { path } => which(&path),
     }
 }
 
@@ -112,6 +130,104 @@ fn mcp_bin() -> PathBuf {
         .ok()
         .and_then(|exe| exe.parent().map(|dir| dir.join("decks-mcp")))
         .unwrap_or_else(|| PathBuf::from("decks-mcp"))
+}
+
+fn worklog(slug: &str) {
+    let profile = read_profile(slug);
+    if profile.repos.is_empty() {
+        eprintln!("no repositories configured for this deck");
+        return;
+    }
+    let mut sections = Vec::new();
+    for repo in &profile.repos {
+        if remote_ok(repo, &profile.git_provider) == Some(false) {
+            eprintln!(
+                "skipping {repo}: remote does not match provider \"{}\"",
+                profile.git_provider
+            );
+            continue;
+        }
+        let commits = today_commits(repo, &profile.author_email);
+        if commits.is_empty() {
+            continue;
+        }
+        let name = Path::new(repo)
+            .file_name()
+            .and_then(|component| component.to_str())
+            .unwrap_or(repo);
+        sections.push(format!("{name}\n{commits}"));
+    }
+    if sections.is_empty() {
+        eprintln!("no commits today in this deck's repositories");
+        return;
+    }
+    daily(slug, format!("### Worklog\n\n{}", sections.join("\n\n")));
+    println!("added worklog to {slug}");
+}
+
+fn which(path: &str) {
+    let target = canonical(path);
+    for deck in read_decks() {
+        let profile = read_profile(&deck.slug);
+        if profile.repos.iter().any(|repo| canonical(repo) == target) {
+            println!("{}", deck.slug);
+            return;
+        }
+    }
+}
+
+fn read_profile(slug: &str) -> Profile {
+    fs::read_to_string(root().join(slug).join("profile.json"))
+        .ok()
+        .and_then(|data| serde_json::from_str(&data).ok())
+        .unwrap_or_default()
+}
+
+fn remote_ok(repo: &str, provider: &str) -> Option<bool> {
+    let url = git(repo, &["remote", "get-url", "origin"])?;
+    host_matches(provider, &url)
+}
+
+fn host_matches(provider: &str, url: &str) -> Option<bool> {
+    match provider {
+        "github" => Some(url.contains("github.com")),
+        "gitlab" => Some(url.contains("gitlab.com")),
+        _ => None,
+    }
+}
+
+fn today_commits(repo: &str, author: &str) -> String {
+    let mut args: Vec<String> = vec![
+        "log".into(),
+        "--since=midnight".into(),
+        "--no-merges".into(),
+        "--pretty=format:- %h %s".into(),
+    ];
+    if !author.is_empty() {
+        args.push(format!("--author={author}"));
+    }
+    let refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    git(repo, &refs).unwrap_or_default()
+}
+
+fn git(repo: &str, args: &[&str]) -> Option<String> {
+    let output = Process::new("git")
+        .arg("-C")
+        .arg(repo)
+        .args(args)
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let text = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    (!text.is_empty()).then_some(text)
+}
+
+fn canonical(path: &str) -> String {
+    fs::canonicalize(path)
+        .map(|resolved| resolved.display().to_string())
+        .unwrap_or_else(|_| path.to_string())
 }
 
 fn list(json: bool) {
@@ -386,5 +502,31 @@ mod tests {
             value["mcpServers"]["decks-nexus"]["args"],
             serde_json::json!(["--deck", "nexus"])
         );
+    }
+
+    #[test]
+    fn host_matches_respects_provider() {
+        assert_eq!(
+            host_matches("github", "git@github.com-personal:me/x.git"),
+            Some(true)
+        );
+        assert_eq!(
+            host_matches("github", "https://gitlab.com/me/x.git"),
+            Some(false)
+        );
+        assert_eq!(
+            host_matches("gitlab", "git@gitlab.com:me/x.git"),
+            Some(true)
+        );
+        assert_eq!(host_matches("other", "anything"), None);
+    }
+
+    #[test]
+    fn profile_parses_swift_keys() {
+        let json = r#"{"gitProvider":"gitlab","authorEmail":"me@equo.dev","repos":["/a","/b"],"accountID":"X"}"#;
+        let profile: Profile = serde_json::from_str(json).unwrap();
+        assert_eq!(profile.git_provider, "gitlab");
+        assert_eq!(profile.author_email, "me@equo.dev");
+        assert_eq!(profile.repos.len(), 2);
     }
 }
