@@ -35,6 +35,7 @@ struct RootView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .keyboardShortcut("n")
                 .padding(12)
             }
         } detail: {
