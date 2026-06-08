@@ -13,6 +13,10 @@ use uuid::Uuid;
     about = "Per-company notes, shared with the Decks app"
 )]
 struct Cli {
+    /// Print machine-readable JSON instead of text
+    #[arg(long, global = true)]
+    json: bool,
+
     #[command(subcommand)]
     command: Command,
 }
@@ -21,12 +25,18 @@ struct Cli {
 enum Command {
     /// List every deck with its open to-do count
     List,
-    /// Print a deck's to-dos
+    /// Show a deck's to-dos and links
     Show { slug: String },
+    /// Create a deck
+    New { name: Vec<String> },
     /// Add a to-do to a deck
     Add { slug: String, text: Vec<String> },
     /// Toggle a to-do by its position
     Done { slug: String, index: usize },
+    /// Append a note to a deck
+    Note { slug: String, text: Vec<String> },
+    /// Prepend a dated entry to a deck's daily log
+    Daily { slug: String, text: Vec<String> },
 }
 
 #[derive(Serialize, Deserialize)]
@@ -48,34 +58,114 @@ struct Todo {
     done_at: Option<String>,
 }
 
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Link {
+    id: String,
+    label: String,
+    url: String,
+    #[serde(default)]
+    note: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DeckSummary {
+    slug: String,
+    name: String,
+    open_todos: usize,
+}
+
 fn main() {
-    match Cli::parse().command {
-        Command::List => list(),
-        Command::Show { slug } => show(&slug),
+    let cli = Cli::parse();
+    match cli.command {
+        Command::List => list(cli.json),
+        Command::Show { slug } => show(&slug, cli.json),
+        Command::New { name } => new(name.join(" ")),
         Command::Add { slug, text } => add(&slug, text.join(" ")),
         Command::Done { slug, index } => done(&slug, index),
+        Command::Note { slug, text } => note(&slug, text.join(" ")),
+        Command::Daily { slug, text } => daily(&slug, text.join(" ")),
     }
 }
 
-fn list() {
-    for deck in read_decks() {
-        let open = read_todos(&deck.slug)
-            .iter()
-            .filter(|todo| !todo.done)
-            .count();
-        println!("{:<18} {:>2} open  ({})", deck.name, open, deck.slug);
+fn list(json: bool) {
+    let summaries: Vec<DeckSummary> = read_decks()
+        .into_iter()
+        .map(|deck| {
+            let open = read_todos(&deck.slug)
+                .iter()
+                .filter(|todo| !todo.done)
+                .count();
+            DeckSummary {
+                slug: deck.slug,
+                name: deck.name,
+                open_todos: open,
+            }
+        })
+        .collect();
+
+    if json {
+        print_json(&summaries);
+        return;
+    }
+    for summary in &summaries {
+        println!(
+            "{:<18} {:>2} open  ({})",
+            summary.name, summary.open_todos, summary.slug
+        );
     }
 }
 
-fn show(slug: &str) {
-    for todo in read_todos(slug) {
+fn show(slug: &str, json: bool) {
+    let todos = read_todos(slug);
+    if json {
+        #[derive(Serialize)]
+        struct View {
+            todos: Vec<Todo>,
+            links: Vec<Link>,
+        }
+        print_json(&View {
+            todos,
+            links: read_links(slug),
+        });
+        return;
+    }
+    for todo in &todos {
         let mark = if todo.done { "x" } else { " " };
         println!("[{mark}] {}", todo.text);
     }
 }
 
+fn new(name: String) {
+    let name = name.trim().to_string();
+    if name.is_empty() {
+        eprintln!("a name is required");
+        return;
+    }
+    let slug = slugify(&name);
+    if slug.is_empty() {
+        eprintln!("a name with letters or numbers is required");
+        return;
+    }
+    let dir = root().join(&slug);
+    if dir.join("deck.json").exists() {
+        return;
+    }
+    let _ = fs::create_dir_all(&dir);
+    let deck = Deck {
+        slug,
+        name,
+        created_at: now(),
+    };
+    if let Ok(json) = serde_json::to_string_pretty(&deck) {
+        let _ = fs::write(dir.join("deck.json"), json);
+    }
+}
+
 fn add(slug: &str, text: String) {
-    if text.trim().is_empty() {
+    let text = text.trim().to_string();
+    if text.is_empty() {
         eprintln!("nothing to add");
         return;
     }
@@ -105,6 +195,40 @@ fn done(slug: &str, index: usize) {
     }
 }
 
+fn note(slug: &str, text: String) {
+    let text = text.trim();
+    if text.is_empty() {
+        eprintln!("nothing to add");
+        return;
+    }
+    let path = root().join(slug).join("notes.md");
+    let mut current = fs::read_to_string(&path).unwrap_or_default();
+    if !current.is_empty() && !current.ends_with('\n') {
+        current.push('\n');
+    }
+    current.push_str(text);
+    current.push('\n');
+    let _ = fs::write(path, current);
+}
+
+fn daily(slug: &str, text: String) {
+    let text = text.trim();
+    if text.is_empty() {
+        eprintln!("nothing to add");
+        return;
+    }
+    let date = &now()[..10];
+    let path = root().join(slug).join("daily.md");
+    let current = fs::read_to_string(&path).unwrap_or_default();
+    let entry = format!("## {date}\n\n{text}\n\n");
+    let next = if current.is_empty() {
+        entry
+    } else {
+        format!("{entry}{current}")
+    };
+    let _ = fs::write(path, next);
+}
+
 fn root() -> PathBuf {
     match std::env::var("DECKS_DIR") {
         Ok(dir) if !dir.is_empty() => PathBuf::from(dir),
@@ -117,6 +241,28 @@ fn root() -> PathBuf {
 
 fn now() -> String {
     Timestamp::now().strftime("%Y-%m-%dT%H:%M:%SZ").to_string()
+}
+
+fn slugify(name: &str) -> String {
+    let mut slug = String::new();
+    let mut prev_dash = false;
+    for ch in name.to_lowercase().chars() {
+        if ch.is_alphanumeric() {
+            slug.push(ch);
+            prev_dash = false;
+        } else if !prev_dash {
+            slug.push('-');
+            prev_dash = true;
+        }
+    }
+    slug.trim_matches('-').to_string()
+}
+
+fn print_json<T: Serialize>(value: &T) {
+    match serde_json::to_string_pretty(value) {
+        Ok(json) => println!("{json}"),
+        Err(error) => eprintln!("{error}"),
+    }
 }
 
 fn read_decks() -> Vec<Deck> {
@@ -136,12 +282,15 @@ fn read_decks() -> Vec<Deck> {
     decks
 }
 
-fn todos_path(slug: &str) -> PathBuf {
-    root().join(slug).join("todos.json")
+fn read_todos(slug: &str) -> Vec<Todo> {
+    fs::read_to_string(root().join(slug).join("todos.json"))
+        .ok()
+        .and_then(|data| serde_json::from_str(&data).ok())
+        .unwrap_or_default()
 }
 
-fn read_todos(slug: &str) -> Vec<Todo> {
-    fs::read_to_string(todos_path(slug))
+fn read_links(slug: &str) -> Vec<Link> {
+    fs::read_to_string(root().join(slug).join("links.json"))
         .ok()
         .and_then(|data| serde_json::from_str(&data).ok())
         .unwrap_or_default()
@@ -149,7 +298,7 @@ fn read_todos(slug: &str) -> Vec<Todo> {
 
 fn write_todos(slug: &str, todos: &[Todo]) {
     if let Ok(json) = serde_json::to_string_pretty(todos) {
-        let _ = fs::write(todos_path(slug), json);
+        let _ = fs::write(root().join(slug).join("todos.json"), json);
     }
 }
 
@@ -184,5 +333,12 @@ mod tests {
         let stamp = now();
         assert_eq!(stamp.len(), 20);
         assert!(stamp.ends_with('Z'));
+    }
+
+    #[test]
+    fn slugify_matches_app_rules() {
+        assert_eq!(slugify("Acme Corp"), "acme-corp");
+        assert_eq!(slugify("  Hello!!  World  "), "hello-world");
+        assert_eq!(slugify("---"), "");
     }
 }
