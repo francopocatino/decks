@@ -9,12 +9,21 @@ struct LinksView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            List {
-                ForEach(store.links(slug)) { link in
-                    row(link)
+            if store.links(slug).isEmpty {
+                ContentUnavailableView(
+                    "No links",
+                    systemImage: "link",
+                    description: Text("Add repos, dashboards or docs you use for this deck.")
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List {
+                    ForEach(store.links(slug)) { link in
+                        row(link)
+                    }
                 }
+                .listStyle(.inset)
             }
-            .listStyle(.inset)
 
             composer
         }
