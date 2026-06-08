@@ -40,6 +40,10 @@ That builds the bundle, copies it to `/Applications/Decks.app` and launches it. 
 
 To build the bundle without installing, run `./scripts/bundle.sh` (output in `build/Decks.app`). To regenerate the icon, run `./scripts/make_icon.sh`.
 
+## Updates
+
+On launch the app checks GitHub for the latest release and shows a banner when a newer version is available; "Check for Updates…" in the app menu does the same on demand. Releases are published automatically when a `v*` tag is pushed.
+
 ## Use the CLI
 
 ```

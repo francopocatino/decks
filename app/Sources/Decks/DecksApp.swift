@@ -5,15 +5,25 @@ import SwiftUI
 struct DecksApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @State private var store = DecksStore()
+    @State private var updates = UpdateChecker()
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environment(store)
+                .environment(updates)
                 .frame(minWidth: 760, minHeight: 460)
+                .task { await updates.check() }
         }
         .windowToolbarStyle(.unified(showsTitle: true))
         .defaultSize(width: 980, height: 640)
+        .commands {
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates…") {
+                    Task { await updates.check() }
+                }
+            }
+        }
     }
 }
 
