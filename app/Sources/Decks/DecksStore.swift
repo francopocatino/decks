@@ -12,6 +12,7 @@ final class DecksStore {
     private var dailyByDeck: [String: String] = [:]
     private var notesByDeck: [String: String] = [:]
     private var saveTasks: [String: Task<Void, Never>] = [:]
+    private var lastSignature = 0
 
     init() {
         Storage.ensureDirectory(Storage.root)
@@ -167,6 +168,34 @@ final class DecksStore {
         for deck in decks { loadContent(deck.slug) }
         let state = Storage.readJSON(State.self, at: stateURL)
         activeSlug = state?.active ?? decks.first?.slug
+        lastSignature = Self.directorySignature()
+    }
+
+    func reloadIfChanged() {
+        let signature = Self.directorySignature()
+        guard signature != lastSignature else { return }
+        lastSignature = signature
+        decks = readDecks().sorted { $0.createdAt < $1.createdAt }
+        for deck in decks { loadContent(deck.slug) }
+        if let active = activeSlug, !decks.contains(where: { $0.slug == active }) {
+            activeSlug = visibleDecks.first?.slug
+            persistActive()
+        }
+    }
+
+    private static func directorySignature() -> Int {
+        let keys: Set<URLResourceKey> = [.contentModificationDateKey]
+        guard let enumerator = FileManager.default.enumerator(
+            at: Storage.root,
+            includingPropertiesForKeys: Array(keys)
+        ) else { return 0 }
+        var hasher = Hasher()
+        for case let url as URL in enumerator {
+            let date = (try? url.resourceValues(forKeys: keys).contentModificationDate) ?? .distantPast
+            hasher.combine(url.path)
+            hasher.combine(date)
+        }
+        return hasher.finalize()
     }
 
     private func readDecks() -> [Deck] {
@@ -181,8 +210,12 @@ final class DecksStore {
         let directory = Storage.deckDirectory(slug)
         todosByDeck[slug] = Storage.readJSON([Todo].self, at: directory.appendingPathComponent("todos.json")) ?? []
         linksByDeck[slug] = Storage.readJSON([Link].self, at: directory.appendingPathComponent("links.json")) ?? []
-        dailyByDeck[slug] = Storage.readString(directory.appendingPathComponent("daily.md"))
-        notesByDeck[slug] = Storage.readString(directory.appendingPathComponent("notes.md"))
+        if saveTasks["daily-\(slug)"] == nil {
+            dailyByDeck[slug] = Storage.readString(directory.appendingPathComponent("daily.md"))
+        }
+        if saveTasks["notes-\(slug)"] == nil {
+            notesByDeck[slug] = Storage.readString(directory.appendingPathComponent("notes.md"))
+        }
     }
 
     // MARK: Helpers
