@@ -3,6 +3,7 @@ import SwiftUI
 struct DeckDetailView: View {
     let deck: Deck
     @Binding var section: DeckSection
+    @State private var showingAsk = false
 
     var body: some View {
         content
@@ -17,6 +18,14 @@ struct DeckDetailView: View {
                     }
                     .pickerStyle(.segmented)
                 }
+                ToolbarItem(placement: .primaryAction) {
+                    Button { showingAsk = true } label: {
+                        Label("Ask", systemImage: "sparkles")
+                    }
+                }
+            }
+            .sheet(isPresented: $showingAsk) {
+                AskView(deck: deck) { showingAsk = false }
             }
     }
 
