@@ -84,6 +84,12 @@ Each deck can carry its own identity: a git provider (GitHub or GitLab) and comm
 
 AI accounts are managed in the app settings (Cmd+,) as named entities; several decks can share one account, or a deck can keep its own. API keys live in the macOS Keychain, never in `~/.decks`.
 
+## Ask this deck (AI)
+
+Each deck has an "Ask" panel (the sparkles button) — a chat scoped to that deck. It answers only from that deck's own to-dos, daily log, notes and links, keeps a persistent history in `~/.decks/<slug>/chat.json`, and uses that deck's AI account. A deck's chat never sees another deck's content or account.
+
+In-app chat needs an account in API-key mode (set in Settings…). Decks on a Claude login account use Claude Code through the scoped MCP server instead.
+
 ## Status
 
 Early. The app covers the four sections and deck switching; the CLI covers listing and to-dos. Next: notes and daily from the CLI, and a quick-capture window.
