@@ -73,6 +73,12 @@ struct RootView: View {
         } message: { _ in
             Text("This removes the deck and all its notes from disk. This cannot be undone.")
         }
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1.5))
+                store.reloadIfChanged()
+            }
+        }
     }
 
     private func deckRow(_ deck: Deck) -> some View {
