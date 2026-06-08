@@ -22,6 +22,10 @@ final class DecksStore {
         return decks.first { $0.slug == activeSlug }
     }
 
+    var visibleDecks: [Deck] { decks.filter { !$0.isArchived } }
+
+    var archivedDecks: [Deck] { decks.filter(\.isArchived) }
+
     // MARK: Decks
 
     func createDeck(name: String) {
@@ -48,7 +52,37 @@ final class DecksStore {
 
     func select(_ slug: String) {
         activeSlug = slug
-        Storage.writeJSON(State(active: slug), to: stateURL)
+        persistActive()
+    }
+
+    func renameDeck(_ slug: String, to newName: String) {
+        let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let index = decks.firstIndex(where: { $0.slug == slug }) else { return }
+        decks[index].name = trimmed
+        persist(decks[index])
+    }
+
+    func setArchived(_ slug: String, _ archived: Bool) {
+        guard let index = decks.firstIndex(where: { $0.slug == slug }) else { return }
+        decks[index].archived = archived ? true : nil
+        persist(decks[index])
+        if archived, activeSlug == slug {
+            activeSlug = visibleDecks.first?.slug
+            persistActive()
+        }
+    }
+
+    func deleteDeck(_ slug: String) {
+        decks.removeAll { $0.slug == slug }
+        todosByDeck[slug] = nil
+        linksByDeck[slug] = nil
+        dailyByDeck[slug] = nil
+        notesByDeck[slug] = nil
+        try? FileManager.default.removeItem(at: Storage.deckDirectory(slug))
+        if activeSlug == slug {
+            activeSlug = visibleDecks.first?.slug
+            persistActive()
+        }
     }
 
     // MARK: To-dos
@@ -149,6 +183,14 @@ final class DecksStore {
     }
 
     // MARK: Helpers
+
+    private func persist(_ deck: Deck) {
+        Storage.writeJSON(deck, to: Storage.deckDirectory(deck.slug).appendingPathComponent("deck.json"))
+    }
+
+    private func persistActive() {
+        Storage.writeJSON(State(active: activeSlug), to: stateURL)
+    }
 
     private var stateURL: URL { Storage.root.appendingPathComponent("state.json") }
 
