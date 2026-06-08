@@ -7,6 +7,7 @@ struct DecksApp: App {
     @State private var store = DecksStore()
     @State private var updates = UpdateChecker()
     @State private var identity = IdentityStore()
+    @State private var chat = ChatStore()
 
     var body: some Scene {
         WindowGroup {
@@ -14,6 +15,7 @@ struct DecksApp: App {
                 .environment(store)
                 .environment(updates)
                 .environment(identity)
+                .environment(chat)
                 .frame(minWidth: 760, minHeight: 460)
                 .task { await updates.check() }
         }
