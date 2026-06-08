@@ -90,6 +90,16 @@ Each deck has an "Ask" panel (the sparkles button) — a chat scoped to that dec
 
 In-app chat needs an account in API-key mode (set in Settings…). Decks on a Claude login account use Claude Code through the scoped MCP server instead.
 
+## Worklog
+
+`decks worklog <slug>` reads the deck's repositories (set in Settings…), collects today's commits filtered to the deck's commit email, and prepends them to the deck's daily log. A repo whose `origin` remote doesn't match the deck's git provider is skipped with a warning, so one job's commits never land in another's worklog.
+
+`decks which <path>` prints the deck that owns a repository path. Together they make a Claude Code SessionEnd hook that captures coding sessions automatically:
+
+```
+deck=$(decks which "$PWD") && [ -n "$deck" ] && decks worklog "$deck"
+```
+
 ## Status
 
 Early. The app covers the four sections and deck switching; the CLI covers listing and to-dos. Next: notes and daily from the CLI, and a quick-capture window.
