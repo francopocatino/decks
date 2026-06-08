@@ -11,6 +11,7 @@ final class DecksStore {
     private var linksByDeck: [String: [Link]] = [:]
     private var dailyByDeck: [String: String] = [:]
     private var notesByDeck: [String: String] = [:]
+    private var saveTasks: [String: Task<Void, Never>] = [:]
 
     init() {
         Storage.ensureDirectory(Storage.root)
@@ -140,7 +141,8 @@ final class DecksStore {
 
     func setDaily(_ text: String, for slug: String) {
         dailyByDeck[slug] = text
-        Storage.writeString(text, to: Storage.deckDirectory(slug).appendingPathComponent("daily.md"))
+        let url = Storage.deckDirectory(slug).appendingPathComponent("daily.md")
+        scheduleSave("daily-\(slug)") { Storage.writeString(text, to: url) }
     }
 
     func appendDailyEntry(to slug: String) {
@@ -154,7 +156,8 @@ final class DecksStore {
 
     func setNotes(_ text: String, for slug: String) {
         notesByDeck[slug] = text
-        Storage.writeString(text, to: Storage.deckDirectory(slug).appendingPathComponent("notes.md"))
+        let url = Storage.deckDirectory(slug).appendingPathComponent("notes.md")
+        scheduleSave("notes-\(slug)") { Storage.writeString(text, to: url) }
     }
 
     // MARK: Loading
@@ -190,6 +193,16 @@ final class DecksStore {
 
     private func persistActive() {
         Storage.writeJSON(State(active: activeSlug), to: stateURL)
+    }
+
+    private func scheduleSave(_ key: String, write: @escaping @MainActor () -> Void) {
+        saveTasks[key]?.cancel()
+        saveTasks[key] = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(400))
+            if Task.isCancelled { return }
+            write()
+            self?.saveTasks[key] = nil
+        }
     }
 
     private var stateURL: URL { Storage.root.appendingPathComponent("state.json") }
