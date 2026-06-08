@@ -6,12 +6,14 @@ struct DecksApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @State private var store = DecksStore()
     @State private var updates = UpdateChecker()
+    @State private var identity = IdentityStore()
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environment(store)
                 .environment(updates)
+                .environment(identity)
                 .frame(minWidth: 760, minHeight: 460)
                 .task { await updates.check() }
         }
@@ -23,6 +25,11 @@ struct DecksApp: App {
                     Task { await updates.check() }
                 }
             }
+        }
+
+        Settings {
+            SettingsView()
+                .environment(identity)
         }
     }
 }
