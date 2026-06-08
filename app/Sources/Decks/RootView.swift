@@ -31,15 +31,20 @@ struct RootView: View {
             }
             .navigationSplitViewColumnWidth(min: 200, ideal: 224, max: 300)
             .safeAreaInset(edge: .bottom) {
-                Button {
-                    showingNewDeck = true
-                } label: {
-                    Label("New deck", systemImage: "plus")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(Rectangle())
+                HStack {
+                    Button {
+                        showingNewDeck = true
+                    } label: {
+                        Label("New deck", systemImage: "plus")
+                    }
+                    .buttonStyle(.plain)
+                    .keyboardShortcut("n")
+                    Spacer()
+                    SettingsLink {
+                        Image(systemName: "gearshape")
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
-                .keyboardShortcut("n")
                 .padding(12)
             }
         } detail: {
