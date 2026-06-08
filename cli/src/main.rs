@@ -124,10 +124,14 @@ fn show(slug: &str, json: bool) {
         struct View {
             todos: Vec<Todo>,
             links: Vec<Link>,
+            daily: String,
+            notes: String,
         }
         print_json(&View {
             todos,
             links: read_links(slug),
+            daily: read_text(slug, "daily.md"),
+            notes: read_text(slug, "notes.md"),
         });
         return;
     }
@@ -294,6 +298,10 @@ fn read_links(slug: &str) -> Vec<Link> {
         .ok()
         .and_then(|data| serde_json::from_str(&data).ok())
         .unwrap_or_default()
+}
+
+fn read_text(slug: &str, file: &str) -> String {
+    fs::read_to_string(root().join(slug).join(file)).unwrap_or_default()
 }
 
 fn write_todos(slug: &str, todos: &[Todo]) {
