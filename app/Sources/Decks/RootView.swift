@@ -1,7 +1,9 @@
+import AppKit
 import SwiftUI
 
 struct RootView: View {
     @Environment(DecksStore.self) private var store
+    @Environment(UpdateChecker.self) private var updates
     @State private var section: DeckSection = .daily
     @State private var showingNewDeck = false
     @State private var newDeckName = ""
@@ -80,6 +82,11 @@ struct RootView: View {
                 store.reloadIfChanged()
             }
         }
+        .safeAreaInset(edge: .top) {
+            if let update = updates.update {
+                UpdateBanner(update: update)
+            }
+        }
     }
 
     private func deckRow(_ deck: Deck) -> some View {
@@ -120,6 +127,25 @@ struct RootView: View {
             get: { pendingDelete != nil },
             set: { if !$0 { pendingDelete = nil } }
         )
+    }
+}
+
+private struct UpdateBanner: View {
+    let update: UpdateChecker.Update
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "arrow.down.circle.fill")
+                .foregroundStyle(.tint)
+            Text("Version \(update.version) is available.")
+            Spacer()
+            Button("View update") {
+                NSWorkspace.shared.open(update.url)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(.bar)
     }
 }
 
