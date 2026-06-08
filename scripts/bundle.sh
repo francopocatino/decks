@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+app="build/Decks.app"
+
+swift build -c release --package-path app
+rm -rf "$app"
+mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
+cp app/.build/release/Decks "$app/Contents/MacOS/Decks"
+cp assets/AppIcon.icns "$app/Contents/Resources/AppIcon.icns"
+cp scripts/Info.plist "$app/Contents/Info.plist"
+codesign --force --sign - "$app"
+
+echo "Built $app"

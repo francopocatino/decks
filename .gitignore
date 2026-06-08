@@ -6,3 +6,6 @@ DerivedData/
 *.xcuserstate
 
 cli/target/
+
+build/
+*.iconset/
