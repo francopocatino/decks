@@ -4,12 +4,14 @@ import SwiftUI
 struct RootView: View {
     @Environment(DecksStore.self) private var store
     @Environment(UpdateChecker.self) private var updates
+    @Environment(IdentityStore.self) private var identity
     @State private var section: DeckSection = .daily
     @State private var showingNewDeck = false
     @State private var newDeckName = ""
     @State private var renaming: Deck?
     @State private var renameText = ""
     @State private var pendingDelete: Deck?
+    @State private var settingsDeck: Deck?
 
     var body: some View {
         NavigationSplitView {
@@ -69,6 +71,10 @@ struct RootView: View {
                 renaming = nil
             }
         }
+        .sheet(item: $settingsDeck) { deck in
+            DeckSettingsView(deck: deck) { settingsDeck = nil }
+                .environment(identity)
+        }
         .confirmationDialog("Delete this deck?", isPresented: deleteDialog, presenting: pendingDelete) { deck in
             Button("Delete \(deck.name)", role: .destructive) {
                 store.deleteDeck(deck.slug)
@@ -95,6 +101,7 @@ struct RootView: View {
             .tag(deck.slug)
             .contextMenu {
                 Button("Rename") { startRename(deck) }
+                Button("Settings…") { settingsDeck = deck }
                 if deck.isArchived {
                     Button("Unarchive") { store.setArchived(deck.slug, false) }
                 } else {
