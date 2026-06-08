@@ -126,10 +126,10 @@ fn read_decks() -> Vec<Deck> {
     };
     for entry in entries.flatten() {
         let meta = entry.path().join("deck.json");
-        if let Ok(data) = fs::read_to_string(&meta) {
-            if let Ok(deck) = serde_json::from_str::<Deck>(&data) {
-                decks.push(deck);
-            }
+        if let Ok(data) = fs::read_to_string(&meta)
+            && let Ok(deck) = serde_json::from_str::<Deck>(&data)
+        {
+            decks.push(deck);
         }
     }
     decks.sort_by(|a, b| a.created_at.cmp(&b.created_at));
