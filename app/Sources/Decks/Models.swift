@@ -28,8 +28,10 @@ struct Deck: Identifiable, Codable, Hashable {
     var slug: String
     var name: String
     var createdAt: Date
+    var archived: Bool?
 
     var id: String { slug }
+    var isArchived: Bool { archived ?? false }
 }
 
 struct Todo: Identifiable, Codable, Hashable {
