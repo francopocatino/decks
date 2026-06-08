@@ -37,6 +37,8 @@ enum Command {
     Note { slug: String, text: Vec<String> },
     /// Prepend a dated entry to a deck's daily log
     Daily { slug: String, text: Vec<String> },
+    /// Print Claude MCP config for a server scoped to one deck
+    McpConfig { slug: String },
 }
 
 #[derive(Serialize, Deserialize)]
@@ -86,7 +88,30 @@ fn main() {
         Command::Done { slug, index } => done(&slug, index),
         Command::Note { slug, text } => note(&slug, text.join(" ")),
         Command::Daily { slug, text } => daily(&slug, text.join(" ")),
+        Command::McpConfig { slug } => mcp_config(&slug),
     }
+}
+
+fn mcp_config(slug: &str) {
+    let bin = mcp_bin().display().to_string();
+    print_json(&mcp_config_value(slug, &bin));
+    eprintln!("\nClaude Code: claude mcp add decks-{slug} -- {bin} --deck {slug}");
+}
+
+fn mcp_config_value(slug: &str, bin: &str) -> serde_json::Value {
+    let mut servers = serde_json::Map::new();
+    servers.insert(
+        format!("decks-{slug}"),
+        serde_json::json!({ "command": bin, "args": ["--deck", slug] }),
+    );
+    serde_json::json!({ "mcpServers": serde_json::Value::Object(servers) })
+}
+
+fn mcp_bin() -> PathBuf {
+    std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(|dir| dir.join("decks-mcp")))
+        .unwrap_or_else(|| PathBuf::from("decks-mcp"))
 }
 
 fn list(json: bool) {
@@ -348,5 +373,18 @@ mod tests {
         assert_eq!(slugify("Acme Corp"), "acme-corp");
         assert_eq!(slugify("  Hello!!  World  "), "hello-world");
         assert_eq!(slugify("---"), "");
+    }
+
+    #[test]
+    fn mcp_config_targets_the_deck() {
+        let value = mcp_config_value("nexus", "/bin/decks-mcp");
+        assert_eq!(
+            value["mcpServers"]["decks-nexus"]["command"],
+            "/bin/decks-mcp"
+        );
+        assert_eq!(
+            value["mcpServers"]["decks-nexus"]["args"],
+            serde_json::json!(["--deck", "nexus"])
+        );
     }
 }
