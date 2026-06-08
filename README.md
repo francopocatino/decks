@@ -59,6 +59,23 @@ cargo run -- list --json                # machine-readable output
 cargo run -- show acme --json
 ```
 
+## Claude integration (MCP)
+
+`decks-mcp` is an MCP server that exposes deck operations as tools, so Claude (Claude Code or Claude Desktop) can read and write your decks.
+
+To keep work contexts isolated, scope a server to a single deck with `--deck <slug>` (or the `DECKS_DECK` env var). A scoped server only ever sees that deck: it cannot list, read or write any other, so separate jobs never leak into one another.
+
+```json
+{
+  "mcpServers": {
+    "decks-nexus": {
+      "command": "/path/to/decks-mcp",
+      "args": ["--deck", "nexus"]
+    }
+  }
+}
+```
+
 ## Status
 
 Early. The app covers the four sections and deck switching; the CLI covers listing and to-dos. Next: notes and daily from the CLI, and a quick-capture window.
