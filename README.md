@@ -28,17 +28,17 @@ swift run
 
 Or open the `app` folder in Xcode and press Run.
 
-## Build the app bundle
+## Build and install the app
 
-To get a real `Decks.app` you can keep in the Dock:
+Build a real `Decks.app` and install it to `/Applications`:
 
 ```
-./scripts/make_icon.sh     # once, generates the icon
-./scripts/bundle.sh        # builds build/Decks.app
-open build/Decks.app
+./scripts/install.sh
 ```
 
-Right-click the Dock icon and choose Options > Keep in Dock, or drag the app into `/Applications`.
+That builds the bundle, copies it to `/Applications/Decks.app` and launches it. From there it behaves like any native app: double-click to open, and right-click the Dock icon and choose Options > Keep in Dock to keep it there.
+
+To build the bundle without installing, run `./scripts/bundle.sh` (output in `build/Decks.app`). To regenerate the icon, run `./scripts/make_icon.sh`.
 
 ## Use the CLI
 
