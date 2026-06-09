@@ -85,6 +85,21 @@ fn worklog_collects_today_commits() {
 }
 
 #[test]
+fn show_includes_profile_instructions() {
+    let dir = temp_dir("instructions");
+
+    run(&dir, &["new", "Acme"]);
+    let profile =
+        r#"{"instructions":"Write the daily in English as Yesterday / Today / Blockers."}"#;
+    std::fs::write(dir.join("acme").join("profile.json"), profile).unwrap();
+
+    let show = run(&dir, &["show", "acme", "--json"]);
+    assert!(show.contains("Yesterday / Today / Blockers"), "{show}");
+
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
 fn link_and_deck_management() {
     let dir = temp_dir("manage");
 

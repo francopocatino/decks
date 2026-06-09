@@ -131,8 +131,10 @@ struct AskView: View {
         let links = store.links(slug)
             .map { "- \($0.label): \($0.url)" }
             .joined(separator: "\n")
+        let instructions = identity.profile(slug).instructions.trimmingCharacters(in: .whitespacesAndNewlines)
+        let preamble = instructions.isEmpty ? "" : "Instructions for this workspace:\n\(instructions)\n\n"
 
-        return """
+        return preamble + """
         You are the assistant for the "\(deck.name)" workspace only. Answer only from this workspace's content below. Never reference, infer, or reveal any other workspace or context. Be concise and direct.
 
         # To-dos
