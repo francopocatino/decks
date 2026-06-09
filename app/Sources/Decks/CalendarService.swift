@@ -36,22 +36,30 @@ enum CalendarService {
     static func accounts() async -> [CalendarAccount] {
         guard isAuthorized() else { return [] }
         let store = EKEventStore()
-        var seen = Set<String>()
-        var result: [CalendarAccount] = []
-        for source in store.calendars(for: .event).compactMap(\.source) {
-            if seen.insert(source.sourceIdentifier).inserted {
-                result.append(CalendarAccount(id: source.sourceIdentifier, title: source.title))
+        var titles: [String: String] = [:]
+        var emails: [String: String] = [:]
+        for calendar in store.calendars(for: .event) {
+            guard let source = calendar.source else { continue }
+            let id = source.sourceIdentifier
+            titles[id] = source.title
+            if emails[id] == nil, calendar.title.contains("@") {
+                emails[id] = calendar.title
             }
         }
-        return result.sorted { $0.title < $1.title }
+        return titles.map { id, title in
+            let display = title.contains("@") ? title : (emails[id] ?? title)
+            return CalendarAccount(id: id, title: display)
+        }
+        .sorted { $0.title < $1.title }
     }
 
     static func meetings(sources: [String], scope: Scope) async -> [Meeting] {
+        guard !sources.isEmpty else { return [] }
         let store = EKEventStore()
         guard await requestAccess() else { return [] }
 
-        let all = store.calendars(for: .event)
-        let calendars = sources.isEmpty ? all : all.filter { sources.contains($0.source?.sourceIdentifier ?? "") }
+        let calendars = store.calendars(for: .event)
+            .filter { sources.contains($0.source?.sourceIdentifier ?? "") }
         guard !calendars.isEmpty else { return [] }
 
         let calendar = Calendar.current

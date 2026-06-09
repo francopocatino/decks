@@ -3,12 +3,17 @@ import SwiftUI
 
 struct MeetingsView: View {
     @Environment(IdentityStore.self) private var identity
+    @Environment(DecksStore.self) private var store
+    @Environment(\.openSettings) private var openSettings
     let slug: String
 
     @State private var scope: CalendarService.Scope = .today
     @State private var meetings: [Meeting] = []
     @State private var authorized = CalendarService.isAuthorized()
     @State private var loading = false
+    @State private var now = Date()
+
+    private let tick = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -16,7 +21,10 @@ struct MeetingsView: View {
             content
         }
         .task(id: scope) { await load() }
+        .onReceive(tick) { now = $0 }
     }
+
+    private var sources: [String] { identity.profile(slug).calendarSources ?? [] }
 
     private var header: some View {
         HStack {
@@ -57,6 +65,15 @@ struct MeetingsView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if sources.isEmpty {
+            ContentUnavailableView {
+                Label("No calendar selected", systemImage: "calendar")
+            } description: {
+                Text("Choose which calendar account this deck reads from.")
+            } actions: {
+                Button("Open settings", action: openDeckSettings)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if meetings.isEmpty {
             ContentUnavailableView(
                 loading ? "Loading…" : "No meetings",
@@ -65,14 +82,57 @@ struct MeetingsView: View {
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-            List(meetings) { meeting in
-                row(meeting)
+            List(rows) { row in
+                switch row {
+                case .now: nowLine
+                case let .meeting(meeting): meetingRow(meeting)
+                }
             }
             .listStyle(.inset)
         }
     }
 
-    private func row(_ meeting: Meeting) -> some View {
+    private enum Row: Identifiable {
+        case now
+        case meeting(Meeting)
+
+        var id: String {
+            switch self {
+            case .now: "now-marker"
+            case let .meeting(meeting): meeting.id
+            }
+        }
+    }
+
+    private var rows: [Row] {
+        let hasPast = meetings.contains { $0.end < now }
+        let hasUpcoming = meetings.contains { $0.end >= now }
+        var result: [Row] = []
+        var insertedNow = false
+        for meeting in meetings {
+            if hasPast, hasUpcoming, !insertedNow, meeting.end >= now {
+                result.append(.now)
+                insertedNow = true
+            }
+            result.append(.meeting(meeting))
+        }
+        return result
+    }
+
+    private var nowLine: some View {
+        HStack(spacing: 8) {
+            Text("Now")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.red)
+            Rectangle()
+                .fill(.red.opacity(0.7))
+                .frame(height: 1)
+        }
+        .listRowSeparator(.hidden)
+        .padding(.vertical, 2)
+    }
+
+    private func meetingRow(_ meeting: Meeting) -> some View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(meeting.title)
@@ -85,24 +145,28 @@ struct MeetingsView: View {
                 Button("Join") { NSWorkspace.shared.open(link) }
             }
         }
+        .opacity(meeting.end < now ? 0.45 : 1)
         .padding(.vertical, 2)
     }
 
     private func timeLabel(_ meeting: Meeting) -> String {
         let time = meeting.start.formatted(date: .omitted, time: .shortened)
-        if scope == .today || Calendar.current.isDateInToday(meeting.start) {
+        if Calendar.current.isDateInToday(meeting.start) {
             return time
         }
         let day = meeting.start.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
         return "\(day) · \(time)"
     }
 
+    private func openDeckSettings() {
+        store.settingsDeck = slug
+        store.settingsSection = .decks
+        openSettings()
+    }
+
     private func load() async {
         loading = true
-        meetings = await CalendarService.meetings(
-            sources: identity.profile(slug).calendarSources ?? [],
-            scope: scope
-        )
+        meetings = await CalendarService.meetings(sources: sources, scope: scope)
         authorized = CalendarService.isAuthorized()
         loading = false
     }
