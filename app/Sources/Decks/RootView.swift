@@ -21,6 +21,7 @@ struct RootView: View {
                     ForEach(store.visibleDecks) { deck in
                         deckRow(deck)
                     }
+                    .onMove { store.moveDecks(fromOffsets: $0, toOffset: $1) }
                 }
                 if !store.archivedDecks.isEmpty {
                     Section("Archived") {

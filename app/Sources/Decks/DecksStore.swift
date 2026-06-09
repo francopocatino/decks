@@ -43,8 +43,7 @@ final class DecksStore {
         let directory = Storage.deckDirectory(slug)
         Storage.ensureDirectory(directory)
         Storage.writeJSON(deck, to: directory.appendingPathComponent("deck.json"))
-        decks.append(deck)
-        decks.sort { $0.createdAt < $1.createdAt }
+        decks = applyOrder(decks + [deck])
         todosByDeck[slug] = []
         linksByDeck[slug] = []
         dailyByDeck[slug] = ""
@@ -74,8 +73,19 @@ final class DecksStore {
         }
     }
 
+    func moveDecks(fromOffsets source: IndexSet, toOffset destination: Int) {
+        var visible = visibleDecks
+        visible.move(fromOffsets: source, toOffset: destination)
+        decks = visible + archivedDecks
+        Storage.writeJSON(decks.map(\.slug), to: orderURL)
+    }
+
     func deleteDeck(_ slug: String) {
         decks.removeAll { $0.slug == slug }
+        if var order = Storage.readJSON([String].self, at: orderURL), order.contains(slug) {
+            order.removeAll { $0 == slug }
+            Storage.writeJSON(order, to: orderURL)
+        }
         todosByDeck[slug] = nil
         linksByDeck[slug] = nil
         dailyByDeck[slug] = nil
@@ -166,7 +176,7 @@ final class DecksStore {
     // MARK: Loading
 
     private func load() {
-        decks = readDecks().sorted { $0.createdAt < $1.createdAt }
+        decks = readDecks()
         for deck in decks { loadContent(deck.slug) }
         let state = Storage.readJSON(State.self, at: stateURL)
         activeSlug = state?.active ?? decks.first?.slug
@@ -177,7 +187,7 @@ final class DecksStore {
         let signature = Self.directorySignature()
         guard signature != lastSignature else { return }
         lastSignature = signature
-        decks = readDecks().sorted { $0.createdAt < $1.createdAt }
+        decks = readDecks()
         for deck in decks { loadContent(deck.slug) }
         if let active = activeSlug, !decks.contains(where: { $0.slug == active }) {
             activeSlug = visibleDecks.first?.slug
@@ -205,7 +215,21 @@ final class DecksStore {
             at: Storage.root,
             includingPropertiesForKeys: [.isDirectoryKey]
         ) else { return [] }
-        return entries.compactMap { Storage.readJSON(Deck.self, at: $0.appendingPathComponent("deck.json")) }
+        let decks = entries.compactMap { Storage.readJSON(Deck.self, at: $0.appendingPathComponent("deck.json")) }
+        return applyOrder(decks)
+    }
+
+    private func applyOrder(_ decks: [Deck]) -> [Deck] {
+        let order = Storage.readJSON([String].self, at: orderURL) ?? []
+        let position = Dictionary(order.enumerated().map { ($1, $0) }, uniquingKeysWith: { first, _ in first })
+        return decks.sorted { lhs, rhs in
+            switch (position[lhs.slug], position[rhs.slug]) {
+            case let (left?, right?): return left < right
+            case (_?, nil): return true
+            case (nil, _?): return false
+            case (nil, nil): return lhs.createdAt < rhs.createdAt
+            }
+        }
     }
 
     private func loadContent(_ slug: String) {
@@ -241,6 +265,8 @@ final class DecksStore {
     }
 
     private var stateURL: URL { Storage.root.appendingPathComponent("state.json") }
+
+    private var orderURL: URL { Storage.root.appendingPathComponent("order.json") }
 
     static func slugify(_ name: String) -> String {
         let mapped = name.lowercased().map { character -> Character in
