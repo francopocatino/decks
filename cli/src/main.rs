@@ -520,11 +520,13 @@ fn daily(slug: &str, text: String) {
     let date = &now()[..10];
     let path = root().join(slug).join("daily.md");
     let current = fs::read_to_string(&path).unwrap_or_default();
-    let entry = format!("## {date}\n\n{text}\n\n");
-    let next = if current.is_empty() {
-        entry
+    let header = format!("## {date}\n\n");
+    let next = if let Some(rest) = current.strip_prefix(&header) {
+        format!("{header}{text}\n\n{rest}")
+    } else if current.is_empty() {
+        format!("{header}{text}\n\n")
     } else {
-        format!("{entry}{current}")
+        format!("{header}{text}\n\n{current}")
     };
     let _ = fs::write(path, next);
 }
