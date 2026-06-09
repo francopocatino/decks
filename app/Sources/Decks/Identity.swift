@@ -87,6 +87,7 @@ struct Account: Identifiable, Codable, Hashable {
 
 struct DeckProfile: Codable, Hashable {
     var accountID: UUID?
+    var gitConnectorID: UUID?
     var gitProvider: GitProvider
     var authorEmail: String
     var folders: [String]
@@ -94,6 +95,7 @@ struct DeckProfile: Codable, Hashable {
 
     init() {
         accountID = nil
+        gitConnectorID = nil
         gitProvider = .github
         authorEmail = ""
         folders = []
