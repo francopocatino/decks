@@ -61,6 +61,8 @@ cargo run -- list --json                # machine-readable output
 cargo run -- show acme --json
 ```
 
+Also: `link`/`unlink`, `remove` (to-do), `rename`/`archive`/`unarchive`/`delete` (deck), `worklog`, `which`. Everything the app does is on the CLI, and exposed as MCP tools.
+
 ## Claude integration (MCP)
 
 `decks-mcp` is an MCP server that exposes deck operations as tools, so Claude (Claude Code or Claude Desktop) can read and write your decks.
