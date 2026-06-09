@@ -252,6 +252,22 @@ final class DecksStore {
         setDaily(current.isEmpty ? header : header + current, for: slug)
     }
 
+    func addDailyLine(_ text: String, to slug: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        let header = "## \(Self.dailyDate())\n\n"
+        let current = dailyByDeck[slug] ?? ""
+        let next: String
+        if current.hasPrefix(header) {
+            next = header + trimmed + "\n\n" + current.dropFirst(header.count)
+        } else if current.isEmpty {
+            next = header + trimmed + "\n\n"
+        } else {
+            next = header + trimmed + "\n\n" + current
+        }
+        setDaily(next, for: slug)
+    }
+
     static func dailyDate() -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
