@@ -197,7 +197,7 @@ fn tools() -> Value {
         },
         {
             "name": "worklog",
-            "description": "Summarize today's git activity in the deck's repos into its daily log.",
+            "description": "Summarize today's git activity into the deck's daily log: local commits from its folders, plus your GitHub/GitLab pull/merge requests when the deck has a Git connector token.",
             "inputSchema": schema(json!({ "slug": text("Deck slug") }), json!(["slug"]))
         }
     ])
