@@ -15,14 +15,14 @@ struct AskView: View {
         VStack(spacing: 0) {
             header
             Divider()
-            if let account, account.mode == .apiKey {
+            if canChat {
                 thread
                 composer
             } else {
                 ContentUnavailableView(
-                    "No API-key account",
+                    "No chat connector",
                     systemImage: "key",
-                    description: Text("Give this deck an account in API-key mode (Settings…) to chat here. Login-mode decks use Claude Code through the MCP server.")
+                    description: Text("Point this deck at an API-key LLM connector (Claude or OpenAI) in Settings to chat here. Claude login-mode decks use Claude Code through the MCP server.")
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -32,6 +32,11 @@ struct AskView: View {
 
     private var account: Account? {
         identity.accounts.first { $0.id == identity.profile(deck.slug).accountID }
+    }
+
+    private var canChat: Bool {
+        guard let account, account.kind.isLLM else { return false }
+        return account.kind == .openai || account.mode == .apiKey
     }
 
     private var header: some View {
@@ -91,7 +96,7 @@ struct AskView: View {
 
     private func send() {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, let account, account.mode == .apiKey else { return }
+        guard !text.isEmpty, canChat, let account else { return }
         let key = identity.apiKey(for: account.id)
         guard !key.isEmpty else {
             errorText = "This account has no API key set."
@@ -106,15 +111,16 @@ struct AskView: View {
         let system = systemPrompt()
         let history = chat.messages(deck.slug)
         let model = account.model
+        let kind = account.kind
 
         Task {
             do {
-                let reply = try await AnthropicClient().reply(
-                    system: system,
-                    history: history,
-                    apiKey: key,
-                    model: model
-                )
+                let reply: String
+                if kind == .openai {
+                    reply = try await OpenAIClient().reply(system: system, history: history, apiKey: key, model: model)
+                } else {
+                    reply = try await AnthropicClient().reply(system: system, history: history, apiKey: key, model: model)
+                }
                 chat.append(ChatMessage(role: "assistant", text: reply), to: deck.slug)
             } catch {
                 errorText = error.localizedDescription

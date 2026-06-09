@@ -27,17 +27,61 @@ enum AccountMode: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+enum ConnectorKind: String, Codable, CaseIterable, Identifiable {
+    case claude, openai, github, gitlab
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .claude: "Claude"
+        case .openai: "OpenAI"
+        case .github: "GitHub"
+        case .gitlab: "GitLab"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .claude: "sparkles"
+        case .openai: "brain"
+        case .github, .gitlab: "arrow.triangle.branch"
+        }
+    }
+
+    var isLLM: Bool { self == .claude || self == .openai }
+
+    var defaultModel: String {
+        switch self {
+        case .claude: "claude-opus-4-8"
+        case .openai: "gpt-4o"
+        case .github, .gitlab: ""
+        }
+    }
+}
+
 struct Account: Identifiable, Codable, Hashable {
     var id: UUID
     var name: String
+    var kind: ConnectorKind
     var mode: AccountMode
     var model: String
 
-    init(name: String) {
+    init(name: String, kind: ConnectorKind = .claude) {
         id = UUID()
         self.name = name
-        mode = .login
-        model = "claude-opus-4-8"
+        self.kind = kind
+        mode = kind == .claude ? .login : .apiKey
+        model = kind.defaultModel
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        kind = try container.decodeIfPresent(ConnectorKind.self, forKey: .kind) ?? .claude
+        mode = try container.decodeIfPresent(AccountMode.self, forKey: .mode) ?? .login
+        model = try container.decodeIfPresent(String.self, forKey: .model) ?? kind.defaultModel
     }
 }
 

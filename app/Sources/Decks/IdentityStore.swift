@@ -13,16 +13,12 @@ final class IdentityStore {
 
     // MARK: Accounts
 
-    func addAccount(name: String) {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        accounts.append(Account(name: trimmed))
-        saveAccounts()
-    }
-
-    func updateAccount(_ account: Account) {
-        guard let index = accounts.firstIndex(where: { $0.id == account.id }) else { return }
-        accounts[index] = account
+    func upsertAccount(_ account: Account) {
+        if let index = accounts.firstIndex(where: { $0.id == account.id }) {
+            accounts[index] = account
+        } else {
+            accounts.append(account)
+        }
         saveAccounts()
     }
 
