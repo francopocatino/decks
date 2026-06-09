@@ -43,6 +43,7 @@ struct RootView: View {
                     }
                 }
             }
+            .listStyle(.sidebar)
             .navigationSplitViewColumnWidth(min: 200, ideal: 224, max: 300)
             .safeAreaInset(edge: .bottom) {
                 HStack {

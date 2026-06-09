@@ -17,12 +17,12 @@ struct DecksApp: App {
                 .environment(updates)
                 .environment(identity)
                 .environment(chat)
-                .frame(minWidth: 760, minHeight: 460)
                 .onAppear { NSApp.appearance = appearance.nsAppearance }
                 .onChange(of: appearance) { _, value in NSApp.appearance = value.nsAppearance }
                 .task { await updates.check() }
         }
         .windowToolbarStyle(.unified(showsTitle: true))
+        .windowResizability(.contentMinSize)
         .defaultSize(width: 980, height: 640)
         .commands {
             CommandGroup(after: .appInfo) {
