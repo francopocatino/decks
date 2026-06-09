@@ -1,8 +1,25 @@
 import Foundation
 
-enum SettingsTarget: Hashable {
-    case general
-    case deck(String)
+enum SettingsSection: String, Hashable, CaseIterable, Identifiable {
+    case general, connectors, decks
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .general: "General"
+        case .connectors: "Connectors"
+        case .decks: "Decks"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .general: "gearshape"
+        case .connectors: "powerplug"
+        case .decks: "rectangle.stack"
+        }
+    }
 }
 
 enum DeckSection: String, Codable, CaseIterable, Identifiable {

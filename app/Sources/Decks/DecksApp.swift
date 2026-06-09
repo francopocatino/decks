@@ -8,6 +8,7 @@ struct DecksApp: App {
     @State private var updates = UpdateChecker()
     @State private var identity = IdentityStore()
     @State private var chat = ChatStore()
+    @AppStorage("appearance") private var appearance: AppAppearance = .system
 
     var body: some Scene {
         WindowGroup {
@@ -17,6 +18,7 @@ struct DecksApp: App {
                 .environment(identity)
                 .environment(chat)
                 .frame(minWidth: 760, minHeight: 460)
+                .preferredColorScheme(appearance.colorScheme)
                 .task { await updates.check() }
         }
         .windowToolbarStyle(.unified(showsTitle: true))
@@ -33,6 +35,7 @@ struct DecksApp: App {
             SettingsView()
                 .environment(identity)
                 .environment(store)
+                .preferredColorScheme(appearance.colorScheme)
         }
     }
 }

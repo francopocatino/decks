@@ -1,77 +1,84 @@
 import AppKit
 import SwiftUI
 
+enum AppAppearance: String, CaseIterable, Identifiable {
+    case system, light, dark
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .system: "System"
+        case .light: "Light"
+        case .dark: "Dark"
+        }
+    }
+
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: nil
+        case .light: .light
+        case .dark: .dark
+        }
+    }
+}
+
 struct SettingsView: View {
     @Environment(DecksStore.self) private var store
 
     var body: some View {
         NavigationSplitView {
-            List(selection: selection) {
-                Section {
-                    Label("General", systemImage: "gearshape")
-                        .tag(SettingsTarget.general)
-                }
-                Section("Decks") {
-                    ForEach(store.topLevelVisibleDecks()) { deck in
-                        let children = store.visibleChildren(of: deck.slug)
-                        if children.isEmpty {
-                            deckRow(deck)
-                        } else {
-                            DisclosureGroup {
-                                ForEach(children) { child in deckRow(child) }
-                            } label: {
-                                deckRow(deck)
-                            }
-                        }
-                    }
-                }
-                if !store.archivedDecks.isEmpty {
-                    Section("Archived") {
-                        ForEach(store.archivedDecks) { deck in deckRow(deck) }
-                    }
+            List(selection: sectionSelection) {
+                ForEach(SettingsSection.allCases) { section in
+                    Label(section.title, systemImage: section.symbol)
+                        .tag(section)
                 }
             }
-            .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 260)
+            .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 220)
         } detail: {
-            detail
-        }
-        .frame(width: 720, height: 500)
-    }
-
-    private func deckRow(_ deck: Deck) -> some View {
-        Label(deck.name, systemImage: deck.isArchived ? "archivebox" : "rectangle.stack")
-            .tag(SettingsTarget.deck(deck.slug))
-    }
-
-    @ViewBuilder
-    private var detail: some View {
-        switch store.settingsSelection {
-        case .general:
-            GeneralSettingsView()
-        case let .deck(slug):
-            if let deck = store.deck(slug) {
-                DeckSettingsForm(deck: deck).id(slug)
-            } else {
-                ContentUnavailableView("Select a deck", systemImage: "rectangle.stack")
+            switch store.settingsSection {
+            case .general: GeneralSettingsView()
+            case .connectors: ConnectorsView()
+            case .decks: DecksSettingsView()
             }
         }
+        .frame(width: 760, height: 520)
     }
 
-    private var selection: Binding<SettingsTarget?> {
+    private var sectionSelection: Binding<SettingsSection?> {
         Binding(
-            get: { store.settingsSelection },
-            set: { if let value = $0 { store.settingsSelection = value } }
+            get: { store.settingsSection },
+            set: { if let value = $0 { store.settingsSection = value } }
         )
     }
 }
 
 struct GeneralSettingsView: View {
+    @AppStorage("appearance") private var appearance: AppAppearance = .system
+
+    var body: some View {
+        Form {
+            Section("Appearance") {
+                Picker("Theme", selection: $appearance) {
+                    ForEach(AppAppearance.allCases) { option in
+                        Text(option.label).tag(option)
+                    }
+                }
+                .pickerStyle(.segmented)
+            }
+        }
+        .formStyle(.grouped)
+        .navigationTitle("General")
+    }
+}
+
+struct ConnectorsView: View {
     @Environment(IdentityStore.self) private var identity
     @State private var newAccount = ""
 
     var body: some View {
         Form {
-            Section("AI accounts") {
+            Section {
                 if identity.accounts.isEmpty {
                     Text("No accounts yet. Add one and point decks at it; several decks can share the same account.")
                         .font(.callout)
@@ -86,10 +93,14 @@ struct GeneralSettingsView: View {
                     Button("Add", action: add)
                         .disabled(newAccount.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
+            } header: {
+                Text("Claude")
+            } footer: {
+                Text("Connect Claude through the Anthropic API key or Claude Code (MCP). More providers will live here.")
             }
         }
         .formStyle(.grouped)
-        .navigationTitle("General")
+        .navigationTitle("Connectors")
     }
 
     private func add() {
@@ -101,6 +112,64 @@ struct GeneralSettingsView: View {
         Binding(
             get: { identity.accounts.first { $0.id == id } ?? Account(name: "") },
             set: { identity.updateAccount($0) }
+        )
+    }
+}
+
+struct DecksSettingsView: View {
+    @Environment(DecksStore.self) private var store
+
+    var body: some View {
+        HStack(spacing: 0) {
+            List(selection: deckSelection) {
+                ForEach(store.topLevelVisibleDecks()) { deck in
+                    let children = store.visibleChildren(of: deck.slug)
+                    if children.isEmpty {
+                        deckRow(deck)
+                    } else {
+                        DisclosureGroup {
+                            ForEach(children) { child in deckRow(child) }
+                        } label: {
+                            deckRow(deck)
+                        }
+                    }
+                }
+                if !store.archivedDecks.isEmpty {
+                    Section("Archived") {
+                        ForEach(store.archivedDecks) { deck in deckRow(deck) }
+                    }
+                }
+            }
+            .frame(width: 200)
+
+            Divider()
+
+            Group {
+                if let slug = store.settingsDeck, let deck = store.deck(slug) {
+                    DeckSettingsForm(deck: deck).id(slug)
+                } else {
+                    ContentUnavailableView("Select a deck", systemImage: "rectangle.stack")
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .navigationTitle("Decks")
+        .onAppear {
+            if store.settingsDeck == nil {
+                store.settingsDeck = store.topLevelVisibleDecks().first?.slug
+            }
+        }
+    }
+
+    private func deckRow(_ deck: Deck) -> some View {
+        Label(deck.name, systemImage: deck.isArchived ? "archivebox" : "rectangle.stack")
+            .tag(deck.slug)
+    }
+
+    private var deckSelection: Binding<String?> {
+        Binding(
+            get: { store.settingsDeck },
+            set: { store.settingsDeck = $0 }
         )
     }
 }

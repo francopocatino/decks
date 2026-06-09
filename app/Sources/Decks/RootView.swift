@@ -55,7 +55,7 @@ struct RootView: View {
                     .keyboardShortcut("n")
                     Spacer()
                     Button {
-                        store.settingsSelection = .general
+                        store.settingsSection = .general
                         openSettings()
                     } label: {
                         Image(systemName: "gearshape")
@@ -130,7 +130,8 @@ struct RootView: View {
             .contextMenu {
                 Button("Rename") { startRename(deck) }
                 Button("Settings…") {
-                    store.settingsSelection = .deck(deck.slug)
+                    store.settingsDeck = deck.slug
+                    store.settingsSection = .decks
                     openSettings()
                 }
                 if deck.parent == nil, !deck.isArchived {
