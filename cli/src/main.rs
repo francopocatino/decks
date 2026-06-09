@@ -11,7 +11,7 @@ use uuid::Uuid;
 #[command(
     name = "decks",
     version,
-    about = "Per-company notes, shared with the Decks app"
+    about = "Per-project notes, shared with the Decks app"
 )]
 struct Cli {
     /// Print machine-readable JSON instead of text
