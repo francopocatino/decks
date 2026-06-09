@@ -100,6 +100,28 @@ fn show_includes_profile_instructions() {
 }
 
 #[test]
+fn reorder_sets_list_order() {
+    let dir = temp_dir("reorder");
+
+    run(&dir, &["new", "Alpha"]);
+    run(&dir, &["new", "Beta"]);
+    run(&dir, &["new", "Gamma"]);
+
+    run(&dir, &["reorder", "gamma", "alpha", "beta"]);
+    let list = run(&dir, &["list", "--json"]);
+    let gamma = list.find("\"gamma\"").unwrap();
+    let alpha = list.find("\"alpha\"").unwrap();
+    let beta = list.find("\"beta\"").unwrap();
+    assert!(gamma < alpha && alpha < beta, "{list}");
+
+    run(&dir, &["delete", "gamma"]);
+    let order = std::fs::read_to_string(dir.join("order.json")).unwrap();
+    assert!(!order.contains("gamma"), "{order}");
+
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
 fn link_and_deck_management() {
     let dir = temp_dir("manage");
 

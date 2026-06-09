@@ -36,7 +36,7 @@ That builds a native `Decks.app`, installs it, and launches it. Right-click the 
 ## What it does
 
 - Native macOS app (SwiftUI), no Electron.
-- One deck per company/client/project, with rename / archive / delete and a sidebar that shows open to-do counts.
+- One deck per company/client/project, with rename / archive / delete, drag-to-reorder, and a sidebar that shows open to-do counts.
 - Live sync: edits from the CLI or an agent show up in the open app within a second or two.
 - Per-deck identity: git provider and commit email, project folders, which AI account the deck uses, and AI instructions (language, daily format, tone). API keys live in the macOS Keychain.
 - Ask this deck: an in-app chat scoped to one deck, with persistent memory.

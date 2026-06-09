@@ -54,6 +54,8 @@ enum Command {
     Unlink { slug: String, index: usize },
     /// Remove a to-do by its position
     Remove { slug: String, index: usize },
+    /// Set the sidebar order of decks, most important first
+    Reorder { slugs: Vec<String> },
     /// Rename a deck
     Rename { slug: String, name: Vec<String> },
     /// Archive a deck
@@ -132,6 +134,7 @@ fn main() {
         Command::Link { slug, url, label } => link(&slug, &url, label.join(" ")),
         Command::Unlink { slug, index } => unlink(&slug, index),
         Command::Remove { slug, index } => remove(&slug, index),
+        Command::Reorder { slugs } => write_order(&slugs),
         Command::Rename { slug, name } => rename(&slug, name.join(" ")),
         Command::Archive { slug } => set_archived(&slug, true),
         Command::Unarchive { slug } => set_archived(&slug, false),
@@ -488,7 +491,29 @@ fn read_decks() -> Vec<Deck> {
         }
     }
     decks.sort_by(|a, b| a.created_at.cmp(&b.created_at));
+    let order = read_order();
+    if !order.is_empty() {
+        decks.sort_by_key(|deck| {
+            order
+                .iter()
+                .position(|s| s == &deck.slug)
+                .unwrap_or(usize::MAX)
+        });
+    }
     decks
+}
+
+fn read_order() -> Vec<String> {
+    fs::read_to_string(root().join("order.json"))
+        .ok()
+        .and_then(|data| serde_json::from_str(&data).ok())
+        .unwrap_or_default()
+}
+
+fn write_order(slugs: &[String]) {
+    if let Ok(json) = serde_json::to_string_pretty(slugs) {
+        let _ = fs::write(root().join("order.json"), json);
+    }
 }
 
 fn read_todos(slug: &str) -> Vec<Todo> {
@@ -590,6 +615,11 @@ fn set_archived(slug: &str, archived: bool) {
 
 fn delete(slug: &str) {
     let _ = fs::remove_dir_all(root().join(slug));
+    let order = read_order();
+    if order.iter().any(|s| s == slug) {
+        let pruned: Vec<String> = order.into_iter().filter(|s| s != slug).collect();
+        write_order(&pruned);
+    }
     let state_path = root().join("state.json");
     if let Ok(data) = fs::read_to_string(&state_path)
         && let Ok(mut state) = serde_json::from_str::<serde_json::Value>(&data)
