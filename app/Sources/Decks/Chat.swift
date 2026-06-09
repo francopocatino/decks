@@ -21,10 +21,7 @@ final class ChatStore {
     private var byDeck: [String: [ChatMessage]] = [:]
 
     func messages(_ slug: String) -> [ChatMessage] {
-        if let existing = byDeck[slug] { return existing }
-        let loaded = Storage.readJSON([ChatMessage].self, at: url(slug)) ?? []
-        byDeck[slug] = loaded
-        return loaded
+        byDeck[slug] ?? Storage.readJSON([ChatMessage].self, at: url(slug)) ?? []
     }
 
     func append(_ message: ChatMessage, to slug: String) {
@@ -37,6 +34,10 @@ final class ChatStore {
     func clear(_ slug: String) {
         byDeck[slug] = []
         persist(slug)
+    }
+
+    func forget(_ slug: String) {
+        byDeck[slug] = nil
     }
 
     private func persist(_ slug: String) {

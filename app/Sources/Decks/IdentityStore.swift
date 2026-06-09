@@ -43,15 +43,16 @@ final class IdentityStore {
     // MARK: Profiles
 
     func profile(_ slug: String) -> DeckProfile {
-        if let profile = profiles[slug] { return profile }
-        let profile = Storage.readJSON(DeckProfile.self, at: profileURL(slug)) ?? DeckProfile()
-        profiles[slug] = profile
-        return profile
+        profiles[slug] ?? Storage.readJSON(DeckProfile.self, at: profileURL(slug)) ?? DeckProfile()
     }
 
     func saveProfile(_ profile: DeckProfile, for slug: String) {
         profiles[slug] = profile
         Storage.writeJSON(profile, to: profileURL(slug))
+    }
+
+    func forgetProfile(_ slug: String) {
+        profiles[slug] = nil
     }
 
     func accountName(_ id: UUID?) -> String? {
