@@ -32,6 +32,12 @@ struct DailyView: View {
             }
             .buttonStyle(.borderless)
 
+            Button(action: addMeetings) {
+                Label("Meetings", systemImage: "calendar.badge.clock")
+            }
+            .buttonStyle(.borderless)
+            .help("Add today's calendar events to the daily")
+
             Spacer()
 
             if !store.daily(slug).isEmpty {
@@ -59,6 +65,14 @@ struct DailyView: View {
             get: { store.daily(slug) },
             set: { store.setDaily($0, for: slug) }
         )
+    }
+
+    private func addMeetings() {
+        Task {
+            let lines = await CalendarService.todayMeetings()
+            guard !lines.isEmpty else { return }
+            store.addDailyLine("### Meetings\n\n" + lines.joined(separator: "\n"), to: slug)
+        }
     }
 
     private func copyToday() {
