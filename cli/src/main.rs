@@ -86,6 +86,8 @@ struct Deck {
     archived: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     parent: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    color: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -595,6 +597,7 @@ fn new(name: String) {
         created_at: now(),
         archived: None,
         parent: None,
+        color: None,
     };
     if let Ok(json) = serde_json::to_string_pretty(&deck) {
         let _ = fs::write(dir.join("deck.json"), json);
