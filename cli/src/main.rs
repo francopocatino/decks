@@ -54,6 +54,12 @@ enum Command {
     Unlink { slug: String, index: usize },
     /// Remove a to-do by its position
     Remove { slug: String, index: usize },
+    /// Replace a to-do's text by its position
+    Edit {
+        slug: String,
+        index: usize,
+        text: Vec<String>,
+    },
     /// Set the sidebar order of decks, most important first
     Reorder { slugs: Vec<String> },
     /// Rename a deck
@@ -134,6 +140,7 @@ fn main() {
         Command::Link { slug, url, label } => link(&slug, &url, label.join(" ")),
         Command::Unlink { slug, index } => unlink(&slug, index),
         Command::Remove { slug, index } => remove(&slug, index),
+        Command::Edit { slug, index, text } => edit(&slug, index, text.join(" ")),
         Command::Reorder { slugs } => write_order(&slugs),
         Command::Rename { slug, name } => rename(&slug, name.join(" ")),
         Command::Archive { slug } => set_archived(&slug, true),
@@ -401,6 +408,22 @@ fn done(slug: &str, index: usize) {
         Some(todo) => {
             todo.done = !todo.done;
             todo.done_at = todo.done.then(now);
+            write_todos(slug, &todos);
+        }
+        None => eprintln!("no to-do at index {index}"),
+    }
+}
+
+fn edit(slug: &str, index: usize, text: String) {
+    let text = text.trim();
+    if text.is_empty() {
+        eprintln!("nothing to set");
+        return;
+    }
+    let mut todos = read_todos(slug);
+    match todos.get_mut(index) {
+        Some(todo) => {
+            todo.text = text.to_string();
             write_todos(slug, &todos);
         }
         None => eprintln!("no to-do at index {index}"),

@@ -4,6 +4,9 @@ struct TodosView: View {
     @Environment(DecksStore.self) private var store
     let slug: String
     @State private var draft = ""
+    @State private var editingID: UUID?
+    @State private var editText = ""
+    @FocusState private var editorFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
@@ -37,18 +40,47 @@ struct TodosView: View {
             }
             .buttonStyle(.plain)
 
-            Text(todo.text)
-                .strikethrough(todo.done, color: .secondary)
-                .foregroundStyle(todo.done ? .secondary : .primary)
+            if editingID == todo.id {
+                TextField("To-do", text: $editText)
+                    .textFieldStyle(.plain)
+                    .focused($editorFocused)
+                    .onSubmit(commitEdit)
+                    .onExitCommand(perform: cancelEdit)
+                    .onChange(of: editorFocused) { _, focused in
+                        if !focused { commitEdit() }
+                    }
+            } else {
+                Text(todo.text)
+                    .strikethrough(todo.done, color: .secondary)
+                    .foregroundStyle(todo.done ? .secondary : .primary)
+                    .onTapGesture(count: 2) { startEdit(todo) }
+            }
 
             Spacer()
         }
         .padding(.vertical, 2)
         .contextMenu {
+            Button("Edit") { startEdit(todo) }
             Button("Delete", role: .destructive) {
                 store.deleteTodo(todo.id, in: slug)
             }
         }
+    }
+
+    private func startEdit(_ todo: Todo) {
+        editingID = todo.id
+        editText = todo.text
+        editorFocused = true
+    }
+
+    private func commitEdit() {
+        guard let id = editingID else { return }
+        store.editTodo(id, text: editText, in: slug)
+        editingID = nil
+    }
+
+    private func cancelEdit() {
+        editingID = nil
     }
 
     private var composer: some View {
