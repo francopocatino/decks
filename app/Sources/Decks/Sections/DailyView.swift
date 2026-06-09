@@ -3,6 +3,7 @@ import SwiftUI
 
 struct DailyView: View {
     @Environment(DecksStore.self) private var store
+    @Environment(IdentityStore.self) private var identity
     let slug: String
     @State private var preview = false
     @State private var noMeetings = false
@@ -85,8 +86,9 @@ struct DailyView: View {
     }
 
     private func addMeetings() {
+        let sources = identity.profile(slug).calendarSources ?? []
         Task {
-            switch await CalendarService.todayMeetings() {
+            switch await CalendarService.todayMeetings(sources: sources) {
             case let .added(lines):
                 store.addDailyLine("### Meetings\n\n" + lines.joined(separator: "\n"), to: slug)
             case .noEvents:

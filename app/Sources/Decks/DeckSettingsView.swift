@@ -8,6 +8,8 @@ struct DeckSettingsForm: View {
 
     @State private var profile = DeckProfile()
     @State private var parentSlug: String?
+    @State private var calendarAccounts: [CalendarAccount] = []
+    @State private var calendarAuthorized = CalendarService.isAuthorized()
 
     var body: some View {
         Form {
@@ -93,6 +95,29 @@ struct DeckSettingsForm: View {
                 Text("The connector's token lets the worklog pull your pull/merge requests.")
             }
             Section {
+                if !calendarAuthorized {
+                    Button("Allow calendar access") {
+                        Task {
+                            await CalendarService.requestAccess()
+                            calendarAuthorized = CalendarService.isAuthorized()
+                            calendarAccounts = await CalendarService.accounts()
+                        }
+                    }
+                } else if calendarAccounts.isEmpty {
+                    Text("No calendar accounts found. Add them in System Settings → Internet Accounts.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(calendarAccounts) { account in
+                        Toggle(account.title, isOn: calendarBinding(account.id))
+                    }
+                }
+            } header: {
+                Text("Calendar")
+            } footer: {
+                Text("Which accounts the Meetings button reads from. None selected means all calendars.")
+            }
+            Section {
                 ForEach(profile.folders, id: \.self) { folder in
                     Text(folder).font(.callout).foregroundStyle(.secondary)
                 }
@@ -107,6 +132,11 @@ struct DeckSettingsForm: View {
             }
         }
         .formStyle(.grouped)
+        .task {
+            if calendarAuthorized {
+                calendarAccounts = await CalendarService.accounts()
+            }
+        }
         .onAppear {
             profile = identity.profile(deck.slug)
             parentSlug = deck.parent
@@ -121,6 +151,21 @@ struct DeckSettingsForm: View {
                 store.setParent(deck.slug, to: value)
             }
         }
+    }
+
+    private func calendarBinding(_ id: String) -> Binding<Bool> {
+        Binding(
+            get: { (profile.calendarSources ?? []).contains(id) },
+            set: { isOn in
+                var sources = profile.calendarSources ?? []
+                if isOn {
+                    if !sources.contains(id) { sources.append(id) }
+                } else {
+                    sources.removeAll { $0 == id }
+                }
+                profile.calendarSources = sources.isEmpty ? nil : sources
+            }
+        )
     }
 
     private func addFolder() {

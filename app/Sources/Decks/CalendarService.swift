@@ -1,6 +1,11 @@
 import EventKit
 import Foundation
 
+struct CalendarAccount: Identifiable, Hashable {
+    let id: String
+    let title: String
+}
+
 enum CalendarService {
     enum Outcome {
         case added([String])
@@ -8,31 +13,51 @@ enum CalendarService {
         case denied
     }
 
-    static func todayMeetings() async -> Outcome {
+    static func isAuthorized() -> Bool {
+        switch EKEventStore.authorizationStatus(for: .event) {
+        case .fullAccess, .authorized: true
+        default: false
+        }
+    }
+
+    @discardableResult
+    static func requestAccess() async -> Bool {
+        if isAuthorized() { return true }
         let store = EKEventStore()
-        guard await ensureAccess(store) else { return .denied }
+        return (try? await store.requestFullAccessToEvents()) ?? false
+    }
+
+    static func accounts() async -> [CalendarAccount] {
+        guard isAuthorized() else { return [] }
+        let store = EKEventStore()
+        var seen = Set<String>()
+        var result: [CalendarAccount] = []
+        for source in store.calendars(for: .event).compactMap(\.source) {
+            if seen.insert(source.sourceIdentifier).inserted {
+                result.append(CalendarAccount(id: source.sourceIdentifier, title: source.title))
+            }
+        }
+        return result.sorted { $0.title < $1.title }
+    }
+
+    static func todayMeetings(sources: [String]) async -> Outcome {
+        let store = EKEventStore()
+        guard await requestAccess() else { return .denied }
+
+        let all = store.calendars(for: .event)
+        let calendars = sources.isEmpty ? all : all.filter { sources.contains($0.source?.sourceIdentifier ?? "") }
+        guard !calendars.isEmpty else { return .noEvents }
 
         let calendar = Calendar.current
         let start = calendar.startOfDay(for: Date())
         guard let end = calendar.date(byAdding: .day, value: 1, to: start) else { return .noEvents }
 
-        let predicate = store.predicateForEvents(withStart: start, end: end, calendars: nil)
+        let predicate = store.predicateForEvents(withStart: start, end: end, calendars: calendars)
         let lines = store.events(matching: predicate)
             .filter { !$0.isAllDay }
             .sorted { $0.startDate < $1.startDate }
             .map(format)
         return lines.isEmpty ? .noEvents : .added(lines)
-    }
-
-    private static func ensureAccess(_ store: EKEventStore) async -> Bool {
-        switch EKEventStore.authorizationStatus(for: .event) {
-        case .fullAccess, .authorized:
-            return true
-        case .notDetermined:
-            return (try? await store.requestFullAccessToEvents()) ?? false
-        default:
-            return false
-        }
     }
 
     private static func format(_ event: EKEvent) -> String {
