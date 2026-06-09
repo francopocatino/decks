@@ -83,40 +83,47 @@ struct ConnectorsView: View {
 
     var body: some View {
         Form {
-            Section {
-                if identity.accounts.isEmpty {
-                    Text("No connectors yet. Add one and point decks at it; several decks can share the same connector.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
-                ForEach(identity.accounts) { account in
-                    ConnectorRow(account: account) {
-                        editing = account
-                    } onDelete: {
-                        identity.deleteAccount(account.id)
-                    }
-                }
-                Menu {
-                    ForEach(ConnectorKind.allCases) { kind in
-                        Button {
-                            editing = identity.addAccount(name: kind.label, kind: kind)
-                        } label: {
-                            Label(kind.label, systemImage: kind.symbol)
-                        }
-                    }
-                } label: {
-                    Label("New connector", systemImage: "plus")
-                }
-            } header: {
-                Text("Connectors")
-            } footer: {
-                Text("Claude and OpenAI power Ask. GitHub and GitLab tokens will enrich the worklog.")
-            }
+            connectorSection("AI", footer: "Claude and OpenAI power Ask and the MCP server.", kinds: [.claude, .openai])
+            connectorSection("Git", footer: "Tokens that enrich the worklog with your PRs and issues.", kinds: [.github, .gitlab])
         }
         .formStyle(.grouped)
         .sheet(item: $editing) { account in
             ConnectorEditor(account: binding(for: account.id)) { editing = nil }
                 .environment(identity)
+        }
+    }
+
+    @ViewBuilder
+    private func connectorSection(_ title: String, footer: String, kinds: [ConnectorKind]) -> some View {
+        let items = identity.accounts.filter { kinds.contains($0.kind) }
+        Section {
+            if items.isEmpty {
+                Text("None yet.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            ForEach(items) { account in
+                ConnectorRow(account: account) {
+                    editing = account
+                } onDelete: {
+                    identity.deleteAccount(account.id)
+                }
+            }
+            Menu {
+                ForEach(kinds) { kind in
+                    Button {
+                        editing = identity.addAccount(name: kind.label, kind: kind)
+                    } label: {
+                        Label(kind.label, systemImage: kind.symbol)
+                    }
+                }
+            } label: {
+                Label("New \(title) connector", systemImage: "plus")
+            }
+        } header: {
+            Text(title)
+        } footer: {
+            Text(footer)
         }
     }
 
@@ -243,16 +250,24 @@ private struct ConnectorEditor: View {
                 }
 
                 if needsKey {
-                    Section(secretLabel) {
+                    Section {
                         if account.kind.isLLM {
                             TextField("Model", text: $account.model)
                         }
-                        SecureField(secretLabel, text: $key)
+                        SecureField(secretPlaceholder, text: $key)
                         HStack {
                             Button("Verify & save", action: verify)
                                 .disabled(key.trimmingCharacters(in: .whitespaces).isEmpty || status == .checking)
                             statusLabel
+                            Spacer()
+                            if let url = secretURL {
+                                Button(createLabel) { NSWorkspace.shared.open(url) }
+                            }
                         }
+                    } header: {
+                        Text(secretLabel)
+                    } footer: {
+                        Text(secretHelp)
                     }
                 } else {
                     Section {
@@ -305,6 +320,37 @@ private struct ConnectorEditor: View {
         case .github: "GitHub token"
         case .gitlab: "GitLab token"
         }
+    }
+
+    private var secretPlaceholder: String {
+        switch account.kind {
+        case .claude: "sk-ant-…"
+        case .openai: "sk-…"
+        case .github: "ghp_… or github_pat_…"
+        case .gitlab: "glpat-…"
+        }
+    }
+
+    private var secretHelp: String {
+        switch account.kind {
+        case .claude: "Anthropic API key from the console. Used for in-app Ask."
+        case .openai: "OpenAI API key. Used for in-app Ask."
+        case .github: "Personal access token with read access to repos' pull requests and issues (classic: repo / public_repo)."
+        case .gitlab: "Personal access token with the read_api scope."
+        }
+    }
+
+    private var secretURL: URL? {
+        switch account.kind {
+        case .claude: URL(string: "https://console.anthropic.com/settings/keys")
+        case .openai: URL(string: "https://platform.openai.com/api-keys")
+        case .github: URL(string: "https://github.com/settings/tokens")
+        case .gitlab: URL(string: "https://gitlab.com/-/user_settings/personal_access_tokens")
+        }
+    }
+
+    private var createLabel: String {
+        account.kind.isLLM ? "Get API key…" : "Create token…"
     }
 
     @ViewBuilder
