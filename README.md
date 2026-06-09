@@ -1,109 +1,111 @@
-# Decks
+<p align="center">
+  <img src="assets/AppIcon-1024.png" width="120" alt="Decks">
+</p>
 
-Notes that stay organized by context.
+<h1 align="center">Decks</h1>
+
+<p align="center">
+  Per-company notes for macOS, organized by context — built so work contexts never bleed into each other, with deep Claude integration.
+</p>
+
+<p align="center">
+  <img src="https://github.com/francopocatino/decks/actions/workflows/ci.yml/badge.svg" alt="CI">
+  <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
+  <img src="https://img.shields.io/badge/macOS-15%2B-black.svg" alt="macOS 15+">
+</p>
 
 Each company, client or project is a *deck*. A deck holds four sections:
 
-- **Daily** — a dated log for standups and things you want to bring up.
+- **Daily** — a dated log for standups and things to bring up.
 - **To-dos** — what to do or review, with a checkbox.
 - **Notes** — a free markdown scratchpad: decisions, people, context.
 - **Links** — quick access to repos, dashboards and docs.
 
-The point is fast context switching. Open the app, pick the deck, and you are back where you left off, instead of digging through one giant notes file.
+Open the app, pick the deck, and you are back where you left off — instead of digging through one giant notes file. Daily and Notes render markdown with an edit/preview toggle.
 
-Daily and Notes render markdown — headings, lists, bold, code — with an edit/preview toggle.
-
-## Layout
-
-- `app/` — the macOS app (SwiftUI, built as a SwiftPM executable).
-- `cli/` — a small Rust CLI over the same files, meant as the surface for automation later.
-- `docs/format.md` — the on-disk format both sides agree on.
-
-Both read and write plain files under `~/.decks` (override with `DECKS_DIR`). The contract is the file format, not a shared library, so each side stays idiomatic.
-
-## Run the app
+## Install
 
 ```
-cd app
-swift run
+git clone https://github.com/francopocatino/decks
+cd decks
+./scripts/install.sh        # builds Decks.app and installs it to /Applications
 ```
 
-Or open the `app` folder in Xcode and press Run.
+That builds a native `Decks.app`, installs it, and launches it. Right-click the Dock icon and choose Options > Keep in Dock. To run from source instead: `swift run --package-path app`.
 
-## Build and install the app
+## What it does
 
-Build a real `Decks.app` and install it to `/Applications`:
+- Native macOS app (SwiftUI), no Electron.
+- One deck per company/client/project, with rename / archive / delete and a sidebar that shows open to-do counts.
+- Live sync: edits from the CLI or an agent show up in the open app within a second or two.
+- Per-deck identity: git provider and commit email, repositories, and which AI account the deck uses. API keys live in the macOS Keychain.
+- Ask this deck: an in-app chat scoped to one deck, with persistent memory.
+- A Rust CLI and an MCP server so Claude can read and write your decks.
+- Worklog: turn a day's git commits into a daily entry.
+- In-app update check; releases published on `v*` tags.
+
+## Claude integration (MCP)
+
+`decks-mcp` is an MCP server that exposes every deck operation as a tool, addressed by deck id. Register one global server:
 
 ```
-./scripts/install.sh
+cargo install --path cli                 # puts decks + decks-mcp on PATH
+claude mcp add decks -- ~/.cargo/bin/decks-mcp
 ```
 
-That builds the bundle, copies it to `/Applications/Decks.app` and launches it. From there it behaves like any native app: double-click to open, and right-click the Dock icon and choose Options > Keep in Dock to keep it there.
+Then ask Claude — in Claude Code or Claude Desktop — to operate any deck by name:
 
-To build the bundle without installing, run `./scripts/bundle.sh` (output in `build/Decks.app`). To regenerate the icon, run `./scripts/make_icon.sh`.
+- "add a to-do to acme: review the deploy"
+- "fill the daily of nexus with what we did this session"
+- "archive invicto"
 
-## Updates
+`decks mcp-config` prints the ready-to-paste config. To keep a work account isolated, register a server **scoped** to one deck in that account's client only: `decks-mcp --deck <slug>` — it can never see another deck. The account boundary is which client/login you register the server in.
 
-On launch the app checks GitHub for the latest release and shows a banner when a newer version is available; "Check for Updates…" in the app menu does the same on demand. Releases are published automatically when a `v*` tag is pushed.
+## Ask this deck (in-app AI)
 
-## Use the CLI
+Each deck has an Ask panel (the sparkles button) — a chat scoped to that deck. It answers only from that deck's own to-dos, daily, notes and links, keeps a persistent history, and uses that deck's AI account. A deck's chat never sees another deck's content or account. In-app chat needs an API-key account (set in the app settings, Cmd+,); login-account decks use Claude Code through the MCP server instead.
+
+## CLI
 
 The CLI reads and writes the same files as the app, and is the surface meant for automation.
 
 ```
 cd cli
+cargo run -- list                       # decks with open to-do counts
 cargo run -- new "Acme"                 # create a deck
 cargo run -- add acme "review PR 214"   # add a to-do
 cargo run -- done acme 0                # toggle a to-do
 cargo run -- note acme "use sqlite"     # append a note
 cargo run -- daily acme "shipped auth"  # add a dated daily entry
-cargo run -- list --json                # machine-readable output
-cargo run -- show acme --json
+cargo run -- show acme --json           # machine-readable output
 ```
 
-Also: `link`/`unlink`, `remove` (to-do), `rename`/`archive`/`unarchive`/`delete` (deck), `worklog`, `which`. Everything the app does is on the CLI, and exposed as MCP tools.
-
-## Claude integration (MCP)
-
-`decks-mcp` is an MCP server that exposes deck operations as tools, so Claude (Claude Code or Claude Desktop) can read and write your decks.
-
-To keep work contexts isolated, scope a server to a single deck with `--deck <slug>` (or the `DECKS_DECK` env var). A scoped server only ever sees that deck: it cannot list, read or write any other, so separate jobs never leak into one another.
-
-Generate the snippet for a deck with `decks mcp-config <slug>`.
-
-```json
-{
-  "mcpServers": {
-    "decks-nexus": {
-      "command": "/path/to/decks-mcp",
-      "args": ["--deck", "nexus"]
-    }
-  }
-}
-```
-
-## Per-deck identity
-
-Each deck can carry its own identity: a git provider (GitHub or GitLab) and commit email, the repositories it owns, and which AI account it uses. Open it from the deck's context menu (Settings…).
-
-AI accounts are managed in the app settings (Cmd+,) as named entities; several decks can share one account, or a deck can keep its own. API keys live in the macOS Keychain, never in `~/.decks`.
-
-## Ask this deck (AI)
-
-Each deck has an "Ask" panel (the sparkles button) — a chat scoped to that deck. It answers only from that deck's own to-dos, daily log, notes and links, keeps a persistent history in `~/.decks/<slug>/chat.json`, and uses that deck's AI account. A deck's chat never sees another deck's content or account.
-
-In-app chat needs an account in API-key mode (set in Settings…). Decks on a Claude login account use Claude Code through the scoped MCP server instead.
+Also: `link`/`unlink`, `remove` (to-do), `rename`/`archive`/`unarchive`/`delete` (deck), `worklog`, `which`. Every action is exposed as an MCP tool too.
 
 ## Worklog
 
-`decks worklog <slug>` reads the deck's repositories (set in Settings…), collects today's commits filtered to the deck's commit email, and prepends them to the deck's daily log. A repo whose `origin` remote doesn't match the deck's git provider is skipped with a warning, so one job's commits never land in another's worklog.
-
-`decks which <path>` prints the deck that owns a repository path. Together they make a Claude Code SessionEnd hook that captures coding sessions automatically:
+`decks worklog <slug>` reads the deck's repositories, collects today's commits filtered to the deck's commit email, and prepends them to the daily log. A repo whose `origin` remote doesn't match the deck's git provider is skipped, so one job's commits never land in another's worklog. `decks which <path>` resolves a repo path to its deck — together they make a Claude Code SessionEnd hook:
 
 ```
 deck=$(decks which "$PWD") && [ -n "$deck" ] && decks worklog "$deck"
 ```
 
-## Status
+## How it stores data
 
-Early. The app covers the four sections and deck switching; the CLI covers listing and to-dos. Next: notes and daily from the CLI, and a quick-capture window.
+Everything is plain files under `~/.decks` (override with `DECKS_DIR`): JSON for structured data, markdown for free text. The on-disk format is the only contract between the app and the CLI — see [docs/format.md](docs/format.md).
+
+## Development
+
+```
+swift build  --package-path app                                  # app
+cargo build  --manifest-path cli/Cargo.toml                      # cli + mcp
+cargo test   --manifest-path cli/Cargo.toml
+cargo fmt    --manifest-path cli/Cargo.toml --check
+cargo clippy --manifest-path cli/Cargo.toml --all-targets -- -D warnings
+```
+
+CI runs all of the above on every pull request. Changes go through a branch and a pull request; commits are atomic; English only.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
