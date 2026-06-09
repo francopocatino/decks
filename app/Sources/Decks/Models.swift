@@ -23,7 +23,7 @@ enum SettingsSection: String, Hashable, CaseIterable, Identifiable {
 }
 
 enum DeckSection: String, Codable, CaseIterable, Identifiable {
-    case daily, todos, notes, links
+    case daily, todos, notes, links, meetings
 
     var id: String { rawValue }
 
@@ -33,6 +33,7 @@ enum DeckSection: String, Codable, CaseIterable, Identifiable {
         case .todos: "To-dos"
         case .notes: "Notes"
         case .links: "Links"
+        case .meetings: "Meetings"
         }
     }
 
@@ -42,6 +43,7 @@ enum DeckSection: String, Codable, CaseIterable, Identifiable {
         case .todos: "checklist"
         case .notes: "note.text"
         case .links: "link"
+        case .meetings: "person.2"
         }
     }
 }

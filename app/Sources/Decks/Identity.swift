@@ -92,6 +92,7 @@ struct DeckProfile: Codable, Hashable {
     var authorEmail: String
     var folders: [String]
     var instructions: String
+    var calendarSources: [String]?
 
     init() {
         accountID = nil
@@ -100,5 +101,6 @@ struct DeckProfile: Codable, Hashable {
         authorEmail = ""
         folders = []
         instructions = ""
+        calendarSources = nil
     }
 }

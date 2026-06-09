@@ -1,50 +1,108 @@
 import EventKit
 import Foundation
 
+struct CalendarAccount: Identifiable, Hashable {
+    let id: String
+    let title: String
+}
+
+struct Meeting: Identifiable {
+    let id: String
+    let title: String
+    let start: Date
+    let end: Date
+    let link: URL?
+}
+
 enum CalendarService {
-    enum Outcome {
-        case added([String])
-        case noEvents
-        case denied
+    enum Scope {
+        case today, upcoming
     }
 
-    static func todayMeetings() async -> Outcome {
+    static func isAuthorized() -> Bool {
+        switch EKEventStore.authorizationStatus(for: .event) {
+        case .fullAccess, .authorized: true
+        default: false
+        }
+    }
+
+    @discardableResult
+    static func requestAccess() async -> Bool {
+        if isAuthorized() { return true }
         let store = EKEventStore()
-        guard await ensureAccess(store) else { return .denied }
+        return (try? await store.requestFullAccessToEvents()) ?? false
+    }
+
+    static func accounts() async -> [CalendarAccount] {
+        guard isAuthorized() else { return [] }
+        let store = EKEventStore()
+        var titles: [String: String] = [:]
+        var emails: [String: String] = [:]
+        for calendar in store.calendars(for: .event) {
+            guard let source = calendar.source else { continue }
+            let id = source.sourceIdentifier
+            titles[id] = source.title
+            if emails[id] == nil, calendar.title.contains("@") {
+                emails[id] = calendar.title
+            }
+        }
+        return titles.map { id, title in
+            let display = title.contains("@") ? title : (emails[id] ?? title)
+            return CalendarAccount(id: id, title: display)
+        }
+        .sorted { $0.title < $1.title }
+    }
+
+    static func meetings(sources: [String], scope: Scope) async -> [Meeting] {
+        guard !sources.isEmpty else { return [] }
+        let store = EKEventStore()
+        guard await requestAccess() else { return [] }
+
+        let calendars = store.calendars(for: .event)
+            .filter { sources.contains($0.source?.sourceIdentifier ?? "") }
+        guard !calendars.isEmpty else { return [] }
 
         let calendar = Calendar.current
-        let start = calendar.startOfDay(for: Date())
-        guard let end = calendar.date(byAdding: .day, value: 1, to: start) else { return .noEvents }
+        let start: Date
+        let end: Date
+        switch scope {
+        case .today:
+            start = calendar.startOfDay(for: Date())
+            end = calendar.date(byAdding: .day, value: 1, to: start) ?? start
+        case .upcoming:
+            start = Date()
+            end = calendar.date(byAdding: .day, value: 30, to: calendar.startOfDay(for: start)) ?? start
+        }
 
-        let predicate = store.predicateForEvents(withStart: start, end: end, calendars: nil)
-        let lines = store.events(matching: predicate)
+        let predicate = store.predicateForEvents(withStart: start, end: end, calendars: calendars)
+        return store.events(matching: predicate)
             .filter { !$0.isAllDay }
             .sorted { $0.startDate < $1.startDate }
-            .map(format)
-        return lines.isEmpty ? .noEvents : .added(lines)
+            .map { event in
+                Meeting(
+                    id: "\(event.eventIdentifier ?? UUID().uuidString)-\(event.startDate.timeIntervalSince1970)",
+                    title: event.title ?? "Untitled",
+                    start: event.startDate,
+                    end: event.endDate,
+                    link: meetLink(event)
+                )
+            }
     }
 
-    private static func ensureAccess(_ store: EKEventStore) async -> Bool {
-        switch EKEventStore.authorizationStatus(for: .event) {
-        case .fullAccess, .authorized:
-            return true
-        case .notDetermined:
-            return (try? await store.requestFullAccessToEvents()) ?? false
-        default:
-            return false
+    private static func meetLink(_ event: EKEvent) -> URL? {
+        guard let raw = rawMeetLink(event) else { return nil }
+        if raw.contains("meet.google.com"),
+           let email = accountEmail(event.calendar),
+           var components = URLComponents(string: raw) {
+            var items = components.queryItems ?? []
+            items.append(URLQueryItem(name: "authuser", value: email))
+            components.queryItems = items
+            return components.url ?? URL(string: raw)
         }
+        return URL(string: raw)
     }
 
-    private static func format(_ event: EKEvent) -> String {
-        let time = event.startDate.formatted(date: .omitted, time: .shortened)
-        let title = event.title ?? "Untitled"
-        if let link = meetLink(event) {
-            return "- \(time) \(title) — \(link)"
-        }
-        return "- \(time) \(title)"
-    }
-
-    private static func meetLink(_ event: EKEvent) -> String? {
+    private static func rawMeetLink(_ event: EKEvent) -> String? {
         if let url = event.url?.absoluteString, url.hasPrefix("http") {
             return url
         }
@@ -57,5 +115,10 @@ enum CalendarService {
             }
         }
         return nil
+    }
+
+    private static func accountEmail(_ calendar: EKCalendar?) -> String? {
+        guard let title = calendar?.source?.title, title.contains("@") else { return nil }
+        return title
     }
 }

@@ -15,7 +15,9 @@ struct DeckDetailView: View {
                     ToolbarItem(placement: .principal) {
                         Picker("Section", selection: slotBinding(0)) {
                             ForEach(DeckSection.allCases) { section in
-                                Text(section.title).tag(section)
+                                Image(systemName: section.symbol)
+                                    .help(section.title)
+                                    .tag(section)
                             }
                         }
                         .pickerStyle(.segmented)
@@ -139,6 +141,7 @@ private struct PaneView: View {
         case .todos: TodosView(slug: slug)
         case .notes: NotesView(slug: slug)
         case .links: LinksView(slug: slug)
+        case .meetings: MeetingsView(slug: slug)
         }
     }
 }
