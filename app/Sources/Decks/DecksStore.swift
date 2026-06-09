@@ -52,7 +52,7 @@ final class DecksStore {
     }
 
     func canHaveParent(_ slug: String) -> Bool {
-        !decks.contains { $0.parent == slug }
+        DeckTree.canBecomeChild(slug, in: decks)
     }
 
     func parentCandidates(for slug: String) -> [Deck] {
@@ -121,10 +121,7 @@ final class DecksStore {
             persist(decks[index])
             return
         }
-        guard parent != slug,
-              let target = decks.first(where: { $0.slug == parent }), target.parent == nil,
-              canHaveParent(slug)
-        else { return }
+        guard DeckTree.isValidParent(parent, for: slug, in: decks) else { return }
         decks[index].parent = parent
         persist(decks[index])
         decks = flattened(decks)
@@ -140,14 +137,7 @@ final class DecksStore {
     }
 
     private func flattened(_ all: [Deck]) -> [Deck] {
-        var result: [Deck] = []
-        for top in all.filter({ $0.parent == nil }) {
-            result.append(top)
-            result.append(contentsOf: all.filter { $0.parent == top.slug })
-        }
-        let included = Set(result.map(\.slug))
-        result.append(contentsOf: all.filter { !included.contains($0.slug) })
-        return result
+        DeckTree.flatten(all)
     }
 
     func deleteDeck(_ slug: String) {
@@ -372,16 +362,7 @@ final class DecksStore {
     }
 
     private func applyOrder(_ decks: [Deck]) -> [Deck] {
-        let order = Storage.readJSON([String].self, at: orderURL) ?? []
-        let position = Dictionary(order.enumerated().map { ($1, $0) }, uniquingKeysWith: { first, _ in first })
-        return decks.sorted { lhs, rhs in
-            switch (position[lhs.slug], position[rhs.slug]) {
-            case let (left?, right?): return left < right
-            case (_?, nil): return true
-            case (nil, _?): return false
-            case (nil, nil): return lhs.createdAt < rhs.createdAt
-            }
-        }
+        DeckTree.applyOrder(decks, order: Storage.readJSON([String].self, at: orderURL) ?? [])
     }
 
     private func loadContent(_ slug: String) {
