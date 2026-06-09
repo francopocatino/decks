@@ -98,6 +98,12 @@ final class DecksStore {
         persist(decks[index])
     }
 
+    func setColor(_ color: String?, for slug: String) {
+        guard let index = decks.firstIndex(where: { $0.slug == slug }) else { return }
+        decks[index].color = color
+        persist(decks[index])
+    }
+
     func setArchived(_ slug: String, _ archived: Bool) {
         guard let index = decks.firstIndex(where: { $0.slug == slug }) else { return }
         decks[index].archived = archived ? true : nil

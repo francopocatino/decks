@@ -11,6 +11,25 @@ struct DeckSettingsForm: View {
 
     var body: some View {
         Form {
+            Section("Color") {
+                HStack(spacing: 10) {
+                    ForEach(DeckColor.allCases) { option in
+                        Button {
+                            store.setColor(option.rawValue, for: deck.slug)
+                        } label: {
+                            Circle()
+                                .fill(option.color)
+                                .frame(width: 18, height: 18)
+                                .overlay {
+                                    if store.deck(deck.slug)?.color == option.rawValue {
+                                        Circle().strokeBorder(.primary, lineWidth: 2)
+                                    }
+                                }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
             Section("AI account") {
                 Picker("Account", selection: $profile.accountID) {
                     Text("None").tag(UUID?.none)

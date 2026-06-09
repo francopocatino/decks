@@ -97,6 +97,7 @@ struct Deck: Identifiable, Codable, Hashable {
     var createdAt: Date
     var archived: Bool?
     var parent: String?
+    var color: String?
 
     var id: String { slug }
     var isArchived: Bool { archived ?? false }
