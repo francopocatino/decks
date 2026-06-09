@@ -30,10 +30,10 @@ struct DeckSettingsForm: View {
                     }
                 }
             }
-            Section("AI account") {
-                Picker("Account", selection: $profile.accountID) {
+            Section("AI") {
+                Picker("Connector", selection: $profile.accountID) {
                     Text("None").tag(UUID?.none)
-                    ForEach(identity.accounts) { account in
+                    ForEach(identity.accounts.filter { $0.kind.isLLM }) { account in
                         Text(account.name).tag(Optional(account.id))
                     }
                 }
@@ -72,15 +72,25 @@ struct DeckSettingsForm: View {
             } header: {
                 Text("Parent")
             } footer: {
-                Text("A sub-deck inherits its parent's AI account, commit email, git provider and instructions when its own are empty, and sees the parent's links.")
+                Text("A sub-deck inherits its parent's AI and Git connectors, commit email, git provider and instructions when its own are empty, and sees the parent's links.")
             }
-            Section("Git") {
+            Section {
                 Picker("Provider", selection: $profile.gitProvider) {
                     ForEach(GitProvider.allCases) { provider in
                         Text(provider.label).tag(provider)
                     }
                 }
                 TextField("Commit email", text: $profile.authorEmail)
+                Picker("Connector", selection: $profile.gitConnectorID) {
+                    Text("None").tag(UUID?.none)
+                    ForEach(identity.accounts.filter { $0.kind == .github || $0.kind == .gitlab }) { account in
+                        Text(account.name).tag(Optional(account.id))
+                    }
+                }
+            } header: {
+                Text("Git")
+            } footer: {
+                Text("The connector's token lets the worklog pull your pull/merge requests.")
             }
             Section {
                 ForEach(profile.folders, id: \.self) { folder in
