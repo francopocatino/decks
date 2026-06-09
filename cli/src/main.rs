@@ -62,6 +62,8 @@ enum Command {
     },
     /// Set the sidebar order of decks, most important first
     Reorder { slugs: Vec<String> },
+    /// Set or clear a deck's parent (use - to clear)
+    SetParent { slug: String, parent: String },
     /// Rename a deck
     Rename { slug: String, name: Vec<String> },
     /// Archive a deck
@@ -80,6 +82,8 @@ struct Deck {
     created_at: String,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     archived: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    parent: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -142,6 +146,7 @@ fn main() {
         Command::Remove { slug, index } => remove(&slug, index),
         Command::Edit { slug, index, text } => edit(&slug, index, text.join(" ")),
         Command::Reorder { slugs } => write_order(&slugs),
+        Command::SetParent { slug, parent } => set_parent(&slug, &parent),
         Command::Rename { slug, name } => rename(&slug, name.join(" ")),
         Command::Archive { slug } => set_archived(&slug, true),
         Command::Unarchive { slug } => set_archived(&slug, false),
@@ -172,7 +177,7 @@ fn mcp_bin() -> PathBuf {
 }
 
 fn worklog(slug: &str) {
-    let profile = read_profile(slug);
+    let profile = effective_profile(slug);
     if profile.folders.is_empty() {
         eprintln!("no folders configured for this deck");
         return;
@@ -245,6 +250,56 @@ fn which(path: &str) {
             return;
         }
     }
+}
+
+fn set_parent(slug: &str, parent: &str) {
+    let Some(mut deck) = read_deck(slug) else {
+        eprintln!("no deck \"{slug}\"");
+        return;
+    };
+    if parent == "-" || parent.is_empty() {
+        deck.parent = None;
+        write_deck(&deck);
+        return;
+    }
+    if parent == slug {
+        eprintln!("a deck cannot be its own parent");
+        return;
+    }
+    let Some(target) = read_deck(parent) else {
+        eprintln!("no deck \"{parent}\"");
+        return;
+    };
+    if target.parent.is_some() {
+        eprintln!("\"{parent}\" is already a sub-deck; nesting is one level deep");
+        return;
+    }
+    if read_decks()
+        .iter()
+        .any(|d| d.parent.as_deref() == Some(slug))
+    {
+        eprintln!("\"{slug}\" has sub-decks; it cannot become one");
+        return;
+    }
+    deck.parent = Some(parent.to_string());
+    write_deck(&deck);
+}
+
+fn effective_profile(slug: &str) -> Profile {
+    let mut profile = read_profile(slug);
+    if let Some(parent) = read_deck(slug).and_then(|deck| deck.parent) {
+        let inherited = read_profile(&parent);
+        if profile.git_provider.is_empty() {
+            profile.git_provider = inherited.git_provider;
+        }
+        if profile.author_email.is_empty() {
+            profile.author_email = inherited.author_email;
+        }
+        if profile.instructions.is_empty() {
+            profile.instructions = inherited.instructions;
+        }
+    }
+    profile
 }
 
 fn read_profile(slug: &str) -> Profile {
@@ -333,19 +388,28 @@ fn show(slug: &str, json: bool) {
     let todos = read_todos(slug);
     if json {
         #[derive(Serialize)]
+        #[serde(rename_all = "camelCase")]
         struct View {
             todos: Vec<Todo>,
             links: Vec<Link>,
             daily: String,
             notes: String,
             instructions: String,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            parent: Option<String>,
+            #[serde(skip_serializing_if = "Vec::is_empty")]
+            shared_links: Vec<Link>,
         }
+        let parent = read_deck(slug).and_then(|deck| deck.parent);
+        let shared_links = parent.as_deref().map(read_links).unwrap_or_default();
         print_json(&View {
             todos,
             links: read_links(slug),
             daily: read_text(slug, "daily.md"),
             notes: read_text(slug, "notes.md"),
-            instructions: read_profile(slug).instructions,
+            instructions: effective_profile(slug).instructions,
+            parent,
+            shared_links,
         });
         return;
     }
@@ -376,6 +440,7 @@ fn new(name: String) {
         name,
         created_at: now(),
         archived: None,
+        parent: None,
     };
     if let Ok(json) = serde_json::to_string_pretty(&deck) {
         let _ = fs::write(dir.join("deck.json"), json);
@@ -638,6 +703,12 @@ fn set_archived(slug: &str, archived: bool) {
 
 fn delete(slug: &str) {
     let _ = fs::remove_dir_all(root().join(slug));
+    for mut child in read_decks() {
+        if child.parent.as_deref() == Some(slug) {
+            child.parent = None;
+            write_deck(&child);
+        }
+    }
     let order = read_order();
     if order.iter().any(|s| s == slug) {
         let pruned: Vec<String> = order.into_iter().filter(|s| s != slug).collect();

@@ -131,8 +131,25 @@ struct AskView: View {
         let links = store.links(slug)
             .map { "- \($0.label): \($0.url)" }
             .joined(separator: "\n")
-        let instructions = identity.profile(slug).instructions.trimmingCharacters(in: .whitespacesAndNewlines)
+        let own = identity.profile(slug).instructions.trimmingCharacters(in: .whitespacesAndNewlines)
+        let parentSlug = deck.parent
+        let instructions: String
+        if own.isEmpty, let parentSlug {
+            instructions = identity.profile(parentSlug).instructions.trimmingCharacters(in: .whitespacesAndNewlines)
+        } else {
+            instructions = own
+        }
         let preamble = instructions.isEmpty ? "" : "Instructions for this workspace:\n\(instructions)\n\n"
+
+        var sharedBlock = ""
+        if let parentSlug, let parent = store.deck(parentSlug) {
+            let shared = store.links(parentSlug)
+                .map { "- \($0.label): \($0.url)" }
+                .joined(separator: "\n")
+            if !shared.isEmpty {
+                sharedBlock = "\n\n# Shared from \(parent.name)\n\(shared)"
+            }
+        }
 
         return preamble + """
         You are the assistant for the "\(deck.name)" workspace only. Answer only from this workspace's content below. Never reference, infer, or reveal any other workspace or context. Be concise and direct.
@@ -148,6 +165,6 @@ struct AskView: View {
 
         # Links
         \(links.isEmpty ? "(none)" : links)
-        """
+        """ + sharedBlock
     }
 }

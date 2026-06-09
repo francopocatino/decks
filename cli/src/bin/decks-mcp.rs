@@ -84,7 +84,7 @@ fn tools() -> Value {
         },
         {
             "name": "show_deck",
-            "description": "Show a deck's to-dos, links, daily log, notes, and AI instructions. The instructions field defines how to write for this deck (language, daily format, tone) — follow it when drafting dailies or notes.",
+            "description": "Show a deck's to-dos, links, daily log, notes, and AI instructions. The instructions field defines how to write for this deck (language, daily format, tone) and is resolved from the parent deck when empty — follow it when drafting dailies or notes. If the deck has a parent, 'parent' names it and 'sharedLinks' are the parent's links, shared at that level.",
             "inputSchema": schema(json!({ "slug": text("Deck slug") }), json!(["slug"]))
         },
         {
@@ -154,6 +154,14 @@ fn tools() -> Value {
             "inputSchema": schema(
                 json!({ "slug": text("Deck slug"), "index": { "type": "integer", "description": "To-do position" }, "text": text("New to-do text") }),
                 json!(["slug", "index", "text"]),
+            )
+        },
+        {
+            "name": "set_parent",
+            "description": "Set or clear a deck's parent (use \"-\" to clear). Nesting is one level deep: the child inherits the parent's AI account, commit email, git provider and instructions when its own are empty.",
+            "inputSchema": schema(
+                json!({ "slug": text("Deck slug"), "parent": text("Parent deck slug, or - to clear") }),
+                json!(["slug", "parent"]),
             )
         },
         {
@@ -294,6 +302,15 @@ fn call_tool(message: &Value, scope: Option<&str>) -> Result<String, String> {
             let text = arg("text");
             run(&["edit", slug.as_str(), index.as_str(), text.as_str()])
                 .map(|_| "To-do edited.".to_string())
+        }
+        "set_parent" => {
+            if scope.is_some() {
+                return Err("changing a deck's parent is disabled in a scoped session".to_string());
+            }
+            let slug = resolve(arg("slug"))?;
+            let parent = arg("parent");
+            run(&["set-parent", slug.as_str(), parent.as_str()])
+                .map(|_| "Parent updated.".to_string())
         }
         "rename_deck" => {
             let slug = resolve(arg("slug"))?;

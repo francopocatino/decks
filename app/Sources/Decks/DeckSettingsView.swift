@@ -3,10 +3,12 @@ import SwiftUI
 
 struct DeckSettingsView: View {
     @Environment(IdentityStore.self) private var identity
+    @Environment(DecksStore.self) private var store
     let deck: Deck
     var onClose: () -> Void
 
     @State private var profile = DeckProfile()
+    @State private var parentSlug: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -36,6 +38,24 @@ struct DeckSettingsView: View {
                     Text("AI instructions")
                 } footer: {
                     Text("How AI should write for this deck — language, daily format, tone. Used by Ask, and by Claude over the MCP server (it reads these from show_deck).")
+                }
+                Section {
+                    if store.canHaveParent(deck.slug) {
+                        Picker("Parent deck", selection: $parentSlug) {
+                            Text("None").tag(String?.none)
+                            ForEach(store.parentCandidates(for: deck.slug)) { candidate in
+                                Text(candidate.name).tag(Optional(candidate.slug))
+                            }
+                        }
+                    } else {
+                        Text("This deck has sub-decks, so it can't become one.")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
+                } header: {
+                    Text("Parent")
+                } footer: {
+                    Text("A sub-deck inherits its parent's AI account, commit email, git provider and instructions when its own are empty, and sees the parent's links.")
                 }
                 Section("Git") {
                     Picker("Provider", selection: $profile.gitProvider) {
@@ -70,7 +90,10 @@ struct DeckSettingsView: View {
             .padding(12)
         }
         .frame(width: 480, height: 560)
-        .onAppear { profile = identity.profile(deck.slug) }
+        .onAppear {
+            profile = identity.profile(deck.slug)
+            parentSlug = deck.parent
+        }
     }
 
     private func addFolder() {
@@ -86,6 +109,7 @@ struct DeckSettingsView: View {
 
     private func save() {
         identity.saveProfile(profile, for: deck.slug)
+        store.setParent(deck.slug, to: parentSlug)
         onClose()
     }
 }
