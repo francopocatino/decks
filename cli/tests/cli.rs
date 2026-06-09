@@ -184,6 +184,35 @@ fn rename_preserves_color() {
 }
 
 #[test]
+fn hook_install_and_uninstall() {
+    let dir = temp_dir("hook");
+    let settings = dir.join(".claude").join("settings.json");
+
+    let run_home = |args: &[&str]| {
+        Command::new(env!("CARGO_BIN_EXE_decks"))
+            .args(args)
+            .env("HOME", &dir)
+            .output()
+            .expect("run decks");
+    };
+
+    run_home(&["hook", "install"]);
+    let body = std::fs::read_to_string(&settings).unwrap();
+    assert!(body.contains("SessionEnd"), "{body}");
+    assert_eq!(body.matches("worklog").count(), 1, "{body}");
+
+    run_home(&["hook", "install"]);
+    let again = std::fs::read_to_string(&settings).unwrap();
+    assert_eq!(again.matches("worklog").count(), 1, "{again}");
+
+    run_home(&["hook", "uninstall"]);
+    let after = std::fs::read_to_string(&settings).unwrap();
+    assert!(!after.contains("worklog"), "{after}");
+
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
 fn reorder_sets_list_order() {
     let dir = temp_dir("reorder");
 

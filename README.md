@@ -89,11 +89,13 @@ Also: `link`/`unlink`, `remove`/`edit` (to-do), `reorder`/`set-parent`/`rename`/
 
 ## Worklog
 
-`decks worklog <slug>` scans the deck's folders for git repositories, collects today's commits filtered to the deck's commit email, and prepends them to the daily log. A repo whose `origin` remote doesn't match the deck's git provider is skipped, so one context's commits never land in another's worklog. If the deck points at a GitHub or GitLab connector, it also adds today's pull/merge requests you authored — the token is read from the macOS Keychain. `decks which <path>` resolves a path to the deck whose folder contains it — together they make a Claude Code SessionEnd hook:
+`decks worklog <slug>` scans the deck's folders for git repositories, collects today's commits filtered to the deck's commit email, and prepends them to the daily log. A repo whose `origin` remote doesn't match the deck's git provider is skipped, so one context's commits never land in another's worklog. If the deck points at a GitHub or GitLab connector, it also adds today's pull/merge requests you authored — the token is read from the macOS Keychain. `decks which <path>` resolves a path to the deck whose folder contains it — together they make a Claude Code SessionEnd hook so each coding session captures itself into the right deck. Install it with:
 
 ```
-deck=$(decks which "$PWD") && [ -n "$deck" ] && decks worklog "$deck"
+decks hook install        # adds the SessionEnd hook to ~/.claude/settings.json (decks hook uninstall removes it)
 ```
+
+It runs `deck=$(decks which "$CLAUDE_PROJECT_DIR"); [ -n "$deck" ] && decks worklog "$deck"` — a no-op in projects that don't belong to a deck.
 
 ## How it stores data
 
