@@ -45,12 +45,12 @@ struct DeckProfile: Codable, Hashable {
     var accountID: UUID?
     var gitProvider: GitProvider
     var authorEmail: String
-    var repos: [String]
+    var folders: [String]
 
     init() {
         accountID = nil
         gitProvider = .github
         authorEmail = ""
-        repos = []
+        folders = []
     }
 }
