@@ -44,6 +44,11 @@ enum Command {
     McpConfig { slug: String },
     /// Summarize today's git activity in the deck's repos into its daily log
     Worklog { slug: String },
+    /// Install or remove the Claude Code SessionEnd worklog hook
+    Hook {
+        #[command(subcommand)]
+        action: HookAction,
+    },
     /// Print the deck slug that owns a repository path
     Which { path: String },
     /// Add a link to a deck
@@ -74,6 +79,14 @@ enum Command {
     Unarchive { slug: String },
     /// Delete a deck and all its data
     Delete { slug: String },
+}
+
+#[derive(Subcommand)]
+enum HookAction {
+    /// Add the SessionEnd hook to ~/.claude/settings.json
+    Install,
+    /// Remove the SessionEnd hook from ~/.claude/settings.json
+    Uninstall,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -157,6 +170,10 @@ fn main() {
         Command::SetDaily { slug, text } => set_daily(&slug, text),
         Command::McpConfig { slug } => mcp_config(&slug),
         Command::Worklog { slug } => worklog(&slug),
+        Command::Hook { action } => match action {
+            HookAction::Install => hook_install(),
+            HookAction::Uninstall => hook_uninstall(),
+        },
         Command::Which { path } => which(&path),
         Command::Link { slug, url, label } => link(&slug, &url, label.join(" ")),
         Command::Unlink { slug, index } => unlink(&slug, index),
@@ -236,6 +253,112 @@ fn worklog(slug: &str) {
     }
     daily(slug, format!("### Worklog\n\n{body}"));
     println!("added worklog to {slug}");
+}
+
+fn claude_settings_path() -> PathBuf {
+    let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
+    Path::new(&home).join(".claude").join("settings.json")
+}
+
+fn hook_command() -> String {
+    let bin = std::env::current_exe()
+        .ok()
+        .and_then(|path| path.to_str().map(str::to_string))
+        .unwrap_or_else(|| "decks".to_string());
+    format!(
+        "deck=$(\"{bin}\" which \"${{CLAUDE_PROJECT_DIR:-$PWD}}\" 2>/dev/null); [ -n \"$deck\" ] && \"{bin}\" worklog \"$deck\""
+    )
+}
+
+fn is_worklog_group(group: &serde_json::Value) -> bool {
+    group
+        .get("hooks")
+        .and_then(serde_json::Value::as_array)
+        .map(|hooks| {
+            hooks.iter().any(|hook| {
+                hook.get("command")
+                    .and_then(serde_json::Value::as_str)
+                    .is_some_and(|command| command.contains("worklog"))
+            })
+        })
+        .unwrap_or(false)
+}
+
+fn hook_install() {
+    let path = claude_settings_path();
+    let mut root = fs::read_to_string(&path)
+        .ok()
+        .and_then(|data| serde_json::from_str::<serde_json::Value>(&data).ok())
+        .unwrap_or_else(|| serde_json::json!({}));
+    if !root.is_object() {
+        root = serde_json::json!({});
+    }
+
+    let object = root.as_object_mut().unwrap();
+    if !object
+        .get("hooks")
+        .is_some_and(serde_json::Value::is_object)
+    {
+        object.insert("hooks".into(), serde_json::json!({}));
+    }
+    let hooks = object.get_mut("hooks").unwrap().as_object_mut().unwrap();
+    if !hooks
+        .get("SessionEnd")
+        .is_some_and(serde_json::Value::is_array)
+    {
+        hooks.insert("SessionEnd".into(), serde_json::json!([]));
+    }
+    let groups = hooks.get_mut("SessionEnd").unwrap().as_array_mut().unwrap();
+
+    if groups.iter().any(is_worklog_group) {
+        println!("worklog hook already installed");
+        return;
+    }
+    groups.push(serde_json::json!({
+        "hooks": [ { "type": "command", "command": hook_command() } ]
+    }));
+
+    if let Some(parent) = path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    match serde_json::to_string_pretty(&root) {
+        Ok(json) => {
+            let _ = fs::write(&path, json);
+            println!("installed the worklog hook in {}", path.display());
+        }
+        Err(error) => eprintln!("{error}"),
+    }
+}
+
+fn hook_uninstall() {
+    let path = claude_settings_path();
+    let Some(mut root) = fs::read_to_string(&path)
+        .ok()
+        .and_then(|data| serde_json::from_str::<serde_json::Value>(&data).ok())
+    else {
+        println!("no worklog hook found");
+        return;
+    };
+
+    let removed = root
+        .get_mut("hooks")
+        .and_then(|hooks| hooks.get_mut("SessionEnd"))
+        .and_then(serde_json::Value::as_array_mut)
+        .map(|groups| {
+            let before = groups.len();
+            groups.retain(|group| !is_worklog_group(group));
+            before != groups.len()
+        })
+        .unwrap_or(false);
+
+    if removed {
+        if let Ok(json) = serde_json::to_string_pretty(&root) {
+            let _ = fs::write(&path, json);
+        }
+        println!("removed the worklog hook");
+    } else {
+        println!("no worklog hook found");
+    }
 }
 
 fn repos_in(folder: &str) -> Vec<String> {
