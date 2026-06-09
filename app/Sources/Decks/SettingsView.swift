@@ -205,8 +205,13 @@ struct DecksSettingsView: View {
     }
 
     private func deckRow(_ deck: Deck) -> some View {
-        Label(deck.name, systemImage: deck.isArchived ? "archivebox" : "rectangle.stack")
-            .tag(deck.slug)
+        Label {
+            Text(deck.name)
+        } icon: {
+            Image(systemName: deck.isArchived ? "archivebox" : "rectangle.stack")
+                .foregroundStyle(deck.accent)
+        }
+        .tag(deck.slug)
     }
 
     private var deckSelection: Binding<String?> {

@@ -125,8 +125,13 @@ struct RootView: View {
     }
 
     private func deckRow(_ deck: Deck) -> some View {
-        Label(deck.name, systemImage: deck.isArchived ? "archivebox" : "rectangle.stack")
-            .badge(badge(for: deck))
+        Label {
+            Text(deck.name)
+        } icon: {
+            Image(systemName: deck.isArchived ? "archivebox" : "rectangle.stack")
+                .foregroundStyle(deck.accent)
+        }
+        .badge(badge(for: deck))
             .tag(deck.slug)
             .contextMenu {
                 Button("Rename") { startRename(deck) }

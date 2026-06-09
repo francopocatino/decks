@@ -166,6 +166,24 @@ fn sub_deck_inherits_and_shares() {
 }
 
 #[test]
+fn rename_preserves_color() {
+    let dir = temp_dir("color");
+
+    run(&dir, &["new", "Acme"]);
+    std::fs::write(
+        dir.join("acme").join("deck.json"),
+        r#"{"slug":"acme","name":"Acme","createdAt":"2026-01-01T00:00:00Z","color":"blue"}"#,
+    )
+    .unwrap();
+
+    run(&dir, &["rename", "acme", "Renamed"]);
+    let deck = std::fs::read_to_string(dir.join("acme").join("deck.json")).unwrap();
+    assert!(deck.contains("\"color\": \"blue\""), "{deck}");
+
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
 fn reorder_sets_list_order() {
     let dir = temp_dir("reorder");
 
