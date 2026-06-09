@@ -5,6 +5,8 @@ struct DailyView: View {
     @Environment(DecksStore.self) private var store
     let slug: String
     @State private var preview = false
+    @State private var noMeetings = false
+    @State private var accessDenied = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -21,6 +23,21 @@ struct DailyView: View {
                     .padding(16)
             }
         }
+        .alert("No meetings today", isPresented: $noMeetings) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Nothing with a time on your calendars for today.")
+        }
+        .alert("Calendar access needed", isPresented: $accessDenied) {
+            Button("Open Settings") {
+                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars") {
+                    NSWorkspace.shared.open(url)
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Enable Calendar access for Decks in System Settings → Privacy & Security → Calendars.")
+        }
     }
 
     private var header: some View {
@@ -31,6 +48,12 @@ struct DailyView: View {
                 Label("Today", systemImage: "calendar.badge.plus")
             }
             .buttonStyle(.borderless)
+
+            Button(action: addMeetings) {
+                Label("Meetings", systemImage: "calendar.badge.clock")
+            }
+            .buttonStyle(.borderless)
+            .help("Add today's calendar events to the daily")
 
             Spacer()
 
@@ -59,6 +82,19 @@ struct DailyView: View {
             get: { store.daily(slug) },
             set: { store.setDaily($0, for: slug) }
         )
+    }
+
+    private func addMeetings() {
+        Task {
+            switch await CalendarService.todayMeetings() {
+            case let .added(lines):
+                store.addDailyLine("### Meetings\n\n" + lines.joined(separator: "\n"), to: slug)
+            case .noEvents:
+                noMeetings = true
+            case .denied:
+                accessDenied = true
+            }
+        }
     }
 
     private func copyToday() {

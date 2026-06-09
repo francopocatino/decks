@@ -24,5 +24,9 @@
     <true/>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
+    <key>NSCalendarsUsageDescription</key>
+    <string>Decks reads today's events to add your meetings to a deck's daily log.</string>
+    <key>NSCalendarsFullAccessUsageDescription</key>
+    <string>Decks reads today's events to add your meetings to a deck's daily log.</string>
 </dict>
 </plist>
