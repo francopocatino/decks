@@ -84,7 +84,7 @@ fn tools() -> Value {
         },
         {
             "name": "show_deck",
-            "description": "Show a deck's to-dos, links, daily log and notes.",
+            "description": "Show a deck's to-dos, links, daily log, notes, and AI instructions. The instructions field defines how to write for this deck (language, daily format, tone) — follow it when drafting dailies or notes.",
             "inputSchema": schema(json!({ "slug": text("Deck slug") }), json!(["slug"]))
         },
         {

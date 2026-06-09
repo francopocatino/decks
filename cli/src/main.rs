@@ -112,6 +112,8 @@ struct Profile {
     author_email: String,
     #[serde(default)]
     folders: Vec<String>,
+    #[serde(default)]
+    instructions: String,
 }
 
 fn main() {
@@ -326,12 +328,14 @@ fn show(slug: &str, json: bool) {
             links: Vec<Link>,
             daily: String,
             notes: String,
+            instructions: String,
         }
         print_json(&View {
             todos,
             links: read_links(slug),
             daily: read_text(slug, "daily.md"),
             notes: read_text(slug, "notes.md"),
+            instructions: read_profile(slug).instructions,
         });
         return;
     }
