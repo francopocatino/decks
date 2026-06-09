@@ -139,6 +139,7 @@ private struct PaneView: View {
         case .todos: TodosView(slug: slug)
         case .notes: NotesView(slug: slug)
         case .links: LinksView(slug: slug)
+        case .meetings: MeetingsView(slug: slug)
         }
     }
 }
