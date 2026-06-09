@@ -79,7 +79,7 @@ struct GeneralSettingsView: View {
 
 struct ConnectorsView: View {
     @Environment(IdentityStore.self) private var identity
-    @State private var editing: Account?
+    @State private var draft: ConnectorDraft?
 
     var body: some View {
         Form {
@@ -87,8 +87,8 @@ struct ConnectorsView: View {
             connectorSection("Git", footer: "Tokens that enrich the worklog with your PRs and issues.", kinds: [.github, .gitlab])
         }
         .formStyle(.grouped)
-        .sheet(item: $editing) { account in
-            ConnectorEditor(account: binding(for: account.id)) { editing = nil }
+        .sheet(item: $draft) { item in
+            ConnectorEditor(draft: item) { draft = nil }
                 .environment(identity)
         }
     }
@@ -104,7 +104,7 @@ struct ConnectorsView: View {
             }
             ForEach(items) { account in
                 ConnectorRow(account: account) {
-                    editing = account
+                    draft = ConnectorDraft(account: account, isNew: false)
                 } onDelete: {
                     identity.deleteAccount(account.id)
                 }
@@ -112,7 +112,7 @@ struct ConnectorsView: View {
             Menu {
                 ForEach(kinds) { kind in
                     Button {
-                        editing = identity.addAccount(name: kind.label, kind: kind)
+                        draft = ConnectorDraft(account: Account(name: "", kind: kind), isNew: true)
                     } label: {
                         Label(kind.label, systemImage: kind.symbol)
                     }
@@ -126,13 +126,12 @@ struct ConnectorsView: View {
             Text(footer)
         }
     }
+}
 
-    private func binding(for id: UUID) -> Binding<Account> {
-        Binding(
-            get: { identity.accounts.first { $0.id == id } ?? Account(name: "") },
-            set: { identity.updateAccount($0) }
-        )
-    }
+struct ConnectorDraft: Identifiable {
+    var account: Account
+    var isNew: Bool
+    var id: UUID { account.id }
 }
 
 private struct ConnectorRow: View {
@@ -220,12 +219,19 @@ struct DecksSettingsView: View {
 
 private struct ConnectorEditor: View {
     @Environment(IdentityStore.self) private var identity
-    @Binding var account: Account
+    @State private var account: Account
+    private let isNew: Bool
     var onClose: () -> Void
 
     @State private var key = ""
     @State private var status = Status.idle
     @State private var registered = false
+
+    init(draft: ConnectorDraft, onClose: @escaping () -> Void) {
+        _account = State(initialValue: draft.account)
+        isNew = draft.isNew
+        self.onClose = onClose
+    }
 
     private enum Status: Equatable {
         case idle, checking, ok, failed(String)
@@ -256,8 +262,8 @@ private struct ConnectorEditor: View {
                         }
                         SecureField(secretPlaceholder, text: $key)
                         HStack {
-                            Button("Verify & save", action: verify)
-                                .disabled(key.trimmingCharacters(in: .whitespaces).isEmpty || status == .checking)
+                            Button("Verify", action: verify)
+                                .disabled(!keyFormatValid || status == .checking)
                             statusLabel
                             Spacer()
                             if let url = secretURL {
@@ -289,21 +295,49 @@ private struct ConnectorEditor: View {
             .formStyle(.grouped)
 
             HStack {
-                Button("Delete", role: .destructive) {
-                    identity.deleteAccount(account.id)
-                    onClose()
+                if !isNew {
+                    Button("Delete", role: .destructive) {
+                        identity.deleteAccount(account.id)
+                        onClose()
+                    }
                 }
                 Spacer()
-                Button("Done", action: onClose)
+                Button("Cancel", role: .cancel, action: onClose)
+                Button("Save", action: save)
                     .keyboardShortcut(.defaultAction)
+                    .disabled(!isValid)
             }
             .padding(12)
         }
         .frame(width: 420, height: 360)
         .onAppear {
-            key = identity.apiKey(for: account.id)
+            if !isNew { key = identity.apiKey(for: account.id) }
             registered = ClaudeCode.decksRegistered()
         }
+    }
+
+    private var keyTrimmed: String {
+        key.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var keyFormatValid: Bool {
+        switch account.kind {
+        case .claude: keyTrimmed.hasPrefix("sk-ant-")
+        case .openai: keyTrimmed.hasPrefix("sk-")
+        case .github: keyTrimmed.hasPrefix("ghp_") || keyTrimmed.hasPrefix("github_pat_")
+        case .gitlab: keyTrimmed.hasPrefix("glpat-")
+        }
+    }
+
+    private var isValid: Bool {
+        guard !account.name.trimmingCharacters(in: .whitespaces).isEmpty else { return false }
+        return needsKey ? keyFormatValid : true
+    }
+
+    private func save() {
+        identity.upsertAccount(account)
+        if needsKey { identity.setAPIKey(keyTrimmed, for: account.id) }
+        onClose()
     }
 
     private var needsKey: Bool {
@@ -373,8 +407,7 @@ private struct ConnectorEditor: View {
     }
 
     private func verify() {
-        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
-        identity.setAPIKey(trimmed, for: account.id)
+        let trimmed = keyTrimmed
         status = .checking
         Task {
             let result: Result<Void, Error>

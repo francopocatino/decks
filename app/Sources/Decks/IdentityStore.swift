@@ -13,18 +13,12 @@ final class IdentityStore {
 
     // MARK: Accounts
 
-    @discardableResult
-    func addAccount(name: String, kind: ConnectorKind = .claude) -> Account {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        let account = Account(name: trimmed.isEmpty ? kind.label : trimmed, kind: kind)
-        accounts.append(account)
-        saveAccounts()
-        return account
-    }
-
-    func updateAccount(_ account: Account) {
-        guard let index = accounts.firstIndex(where: { $0.id == account.id }) else { return }
-        accounts[index] = account
+    func upsertAccount(_ account: Account) {
+        if let index = accounts.firstIndex(where: { $0.id == account.id }) {
+            accounts[index] = account
+        } else {
+            accounts.append(account)
+        }
         saveAccounts()
     }
 
