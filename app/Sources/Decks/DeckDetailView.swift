@@ -68,7 +68,7 @@ struct DeckDetailView: View {
     }
 
     private func pane(_ index: Int) -> some View {
-        PaneView(slug: deck.slug, section: slotBinding(index), showsHeader: layout.mode != .single, accent: deck.accent)
+        PaneView(slug: deck.slug, section: slotBinding(index), showsHeader: layout.mode != .single)
     }
 
     private func slotBinding(_ index: Int) -> Binding<DeckSection> {
@@ -104,7 +104,6 @@ private struct PaneView: View {
     let slug: String
     @Binding var section: DeckSection
     var showsHeader: Bool
-    var accent: Color
 
     var body: some View {
         VStack(spacing: 0) {
@@ -117,11 +116,8 @@ private struct PaneView: View {
                             }
                         }
                     } label: {
-                        Label {
-                            Text(section.title).font(.headline)
-                        } icon: {
-                            Image(systemName: section.symbol).foregroundStyle(accent)
-                        }
+                        Label(section.title, systemImage: section.symbol)
+                            .font(.headline)
                     }
                     .menuStyle(.borderlessButton)
                     .fixedSize()

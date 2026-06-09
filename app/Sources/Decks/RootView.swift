@@ -128,8 +128,7 @@ struct RootView: View {
         Label {
             Text(deck.name)
         } icon: {
-            Image(systemName: deck.isArchived ? "archivebox" : "rectangle.stack")
-                .foregroundStyle(deck.accent)
+            DeckIcon(deck: deck)
         }
         .badge(badge(for: deck))
             .tag(deck.slug)

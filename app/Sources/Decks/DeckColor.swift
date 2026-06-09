@@ -25,3 +25,18 @@ extension Deck {
         color.flatMap { DeckColor(rawValue: $0) }?.color ?? .secondary
     }
 }
+
+struct DeckIcon: View {
+    let deck: Deck
+
+    var body: some View {
+        if deck.color != nil {
+            Circle()
+                .fill(deck.accent)
+                .frame(width: 10, height: 10)
+        } else {
+            Image(systemName: deck.isArchived ? "archivebox" : "rectangle.stack")
+                .foregroundStyle(.secondary)
+        }
+    }
+}
