@@ -13,11 +13,13 @@ final class IdentityStore {
 
     // MARK: Accounts
 
-    func addAccount(name: String) {
+    @discardableResult
+    func addAccount(name: String, kind: ConnectorKind = .claude) -> Account {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        accounts.append(Account(name: trimmed))
+        let account = Account(name: trimmed.isEmpty ? kind.label : trimmed, kind: kind)
+        accounts.append(account)
         saveAccounts()
+        return account
     }
 
     func updateAccount(_ account: Account) {
