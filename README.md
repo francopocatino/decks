@@ -11,6 +11,8 @@ Each company, client or project is a *deck*. A deck holds four sections:
 
 The point is fast context switching. Open the app, pick the deck, and you are back where you left off, instead of digging through one giant notes file.
 
+Daily and Notes render markdown — headings, lists, bold, code — with an edit/preview toggle.
+
 ## Layout
 
 - `app/` — the macOS app (SwiftUI, built as a SwiftPM executable).

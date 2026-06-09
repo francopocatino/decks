@@ -53,7 +53,11 @@ struct AskView: View {
                         Text(message.role == "user" ? "You" : deck.name)
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        Text(message.text).textSelection(.enabled)
+                        if message.role == "assistant" {
+                            MarkdownView(text: message.text)
+                        } else {
+                            Text(message.text).textSelection(.enabled)
+                        }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
