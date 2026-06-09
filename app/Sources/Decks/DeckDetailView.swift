@@ -5,7 +5,6 @@ struct DeckDetailView: View {
     let deck: Deck
     @State private var layout = DeckLayout()
     @State private var showingAsk = false
-    @State private var showingSettings = false
 
     var body: some View {
         panes
@@ -40,17 +39,9 @@ struct DeckDetailView: View {
                         Label("Ask", systemImage: "sparkles")
                     }
                 }
-                ToolbarItem(placement: .primaryAction) {
-                    Button { showingSettings = true } label: {
-                        Label("Deck settings", systemImage: "slider.horizontal.3")
-                    }
-                }
             }
             .sheet(isPresented: $showingAsk) {
                 AskView(deck: deck) { showingAsk = false }
-            }
-            .sheet(isPresented: $showingSettings) {
-                DeckSettingsView(deck: deck) { showingSettings = false }
             }
             .onAppear { layout = store.layout(deck.slug) }
     }

@@ -7,6 +7,7 @@ import Observation
 final class DecksStore {
     private(set) var decks: [Deck] = []
     var activeSlug: String?
+    var settingsSelection: SettingsTarget = .general
 
     private var todosByDeck: [String: [Todo]] = [:]
     private var linksByDeck: [String: [Link]] = [:]
