@@ -20,12 +20,18 @@ struct DeckSettingsView: View {
                     }
                 }
                 Section {
-                    TextField(
-                        "e.g. Write the daily in English as Yesterday / Today / Blockers bullets.",
-                        text: $profile.instructions,
-                        axis: .vertical
-                    )
-                    .lineLimit(3 ... 8)
+                    ZStack(alignment: .topLeading) {
+                        if profile.instructions.isEmpty {
+                            Text("e.g. Write the daily in English as Yesterday / Today / Blockers bullets.")
+                                .foregroundStyle(.tertiary)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 8)
+                                .allowsHitTesting(false)
+                        }
+                        TextEditor(text: $profile.instructions)
+                            .scrollContentBackground(.hidden)
+                            .frame(minHeight: 96)
+                    }
                 } header: {
                     Text("AI instructions")
                 } footer: {
