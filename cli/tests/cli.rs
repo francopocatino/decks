@@ -56,6 +56,21 @@ fn full_flow() {
 }
 
 #[test]
+fn daily_merges_same_day() {
+    let dir = temp_dir("daily");
+
+    run(&dir, &["new", "Acme"]);
+    run(&dir, &["daily", "acme", "first"]);
+    run(&dir, &["daily", "acme", "second"]);
+
+    let body = std::fs::read_to_string(dir.join("acme").join("daily.md")).unwrap();
+    assert_eq!(body.matches("## ").count(), 1, "{body}");
+    assert!(body.contains("first") && body.contains("second"), "{body}");
+
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
 fn worklog_collects_today_commits() {
     let dir = temp_dir("worklog");
     let repo = dir.join("repo");

@@ -256,10 +256,18 @@ final class DecksStore {
     }
 
     func appendDailyEntry(to slug: String) {
-        let date = Date.now.formatted(.dateTime.weekday(.wide).day().month(.wide).year())
-        let header = "## \(date)\n\n"
+        let header = "## \(Self.dailyDate())\n\n"
         let current = dailyByDeck[slug] ?? ""
-        setDaily(current.isEmpty ? header : header + "\n" + current, for: slug)
+        guard !current.hasPrefix(header) else { return }
+        setDaily(current.isEmpty ? header : header + current, for: slug)
+    }
+
+    static func dailyDate() -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(identifier: "UTC")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: Date.now)
     }
 
     func notes(_ slug: String) -> String { notesByDeck[slug] ?? "" }
