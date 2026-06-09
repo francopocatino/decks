@@ -32,6 +32,12 @@ struct DecksApp: App {
             }
         }
 
+        MenuBarExtra("Decks", systemImage: "rectangle.stack") {
+            QuickCaptureView()
+                .environment(store)
+        }
+        .menuBarExtraStyle(.window)
+
         Settings {
             SettingsView()
                 .environment(identity)
