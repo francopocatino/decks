@@ -18,7 +18,8 @@ struct DecksApp: App {
                 .environment(identity)
                 .environment(chat)
                 .frame(minWidth: 760, minHeight: 460)
-                .preferredColorScheme(appearance.colorScheme)
+                .onAppear { NSApp.appearance = appearance.nsAppearance }
+                .onChange(of: appearance) { _, value in NSApp.appearance = value.nsAppearance }
                 .task { await updates.check() }
         }
         .windowToolbarStyle(.unified(showsTitle: true))
@@ -35,7 +36,6 @@ struct DecksApp: App {
             SettingsView()
                 .environment(identity)
                 .environment(store)
-                .preferredColorScheme(appearance.colorScheme)
         }
     }
 }
