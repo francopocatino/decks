@@ -78,7 +78,6 @@ struct DeckSettingsForm: View {
             }
         }
         .formStyle(.grouped)
-        .navigationTitle(deck.name)
         .onAppear {
             profile = identity.profile(deck.slug)
             parentSlug = deck.parent
