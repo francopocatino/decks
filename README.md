@@ -38,7 +38,7 @@ That builds a native `Decks.app`, installs it, and launches it. Right-click the 
 - Native macOS app (SwiftUI), no Electron.
 - One deck per company/client/project, with rename / archive / delete and a sidebar that shows open to-do counts.
 - Live sync: edits from the CLI or an agent show up in the open app within a second or two.
-- Per-deck identity: git provider and commit email, repositories, and which AI account the deck uses. API keys live in the macOS Keychain.
+- Per-deck identity: git provider and commit email, project folders, and which AI account the deck uses. API keys live in the macOS Keychain.
 - Ask this deck: an in-app chat scoped to one deck, with persistent memory.
 - A Rust CLI and an MCP server so Claude can read and write your decks.
 - Worklog: turn a day's git commits into a daily entry.
@@ -84,7 +84,7 @@ Also: `link`/`unlink`, `remove` (to-do), `rename`/`archive`/`unarchive`/`delete`
 
 ## Worklog
 
-`decks worklog <slug>` reads the deck's repositories, collects today's commits filtered to the deck's commit email, and prepends them to the daily log. A repo whose `origin` remote doesn't match the deck's git provider is skipped, so one job's commits never land in another's worklog. `decks which <path>` resolves a repo path to its deck — together they make a Claude Code SessionEnd hook:
+`decks worklog <slug>` scans the deck's folders for git repositories, collects today's commits filtered to the deck's commit email, and prepends them to the daily log. A repo whose `origin` remote doesn't match the deck's git provider is skipped, so one job's commits never land in another's worklog. `decks which <path>` resolves a path to the deck whose folder contains it — together they make a Claude Code SessionEnd hook:
 
 ```
 deck=$(decks which "$PWD") && [ -n "$deck" ] && decks worklog "$deck"

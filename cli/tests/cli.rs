@@ -71,7 +71,7 @@ fn worklog_collects_today_commits() {
 
     run(&dir, &["new", "Acme"]);
     let profile = format!(
-        r#"{{"gitProvider":"other","authorEmail":"me@acme.dev","repos":["{}"]}}"#,
+        r#"{{"gitProvider":"other","authorEmail":"me@acme.dev","folders":["{}"]}}"#,
         repo.display()
     );
     std::fs::write(dir.join("acme").join("profile.json"), profile).unwrap();

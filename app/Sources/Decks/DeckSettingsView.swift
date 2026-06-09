@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct DeckSettingsView: View {
@@ -6,7 +7,6 @@ struct DeckSettingsView: View {
     var onClose: () -> Void
 
     @State private var profile = DeckProfile()
-    @State private var newRepo = ""
 
     var body: some View {
         VStack(spacing: 0) {
@@ -27,17 +27,18 @@ struct DeckSettingsView: View {
                     }
                     TextField("Commit email", text: $profile.authorEmail)
                 }
-                Section("Repositories") {
-                    ForEach(profile.repos, id: \.self) { repo in
-                        Text(repo).font(.callout).foregroundStyle(.secondary)
+                Section {
+                    ForEach(profile.folders, id: \.self) { folder in
+                        Text(folder).font(.callout).foregroundStyle(.secondary)
                     }
-                    .onDelete { profile.repos.remove(atOffsets: $0) }
-                    HStack {
-                        TextField("Repository path", text: $newRepo)
-                            .onSubmit(addRepo)
-                        Button("Add", action: addRepo)
-                            .disabled(newRepo.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .onDelete { profile.folders.remove(atOffsets: $0) }
+                    Button(action: addFolder) {
+                        Label("Add folder…", systemImage: "folder.badge.plus")
                     }
+                } header: {
+                    Text("Folders")
+                } footer: {
+                    Text("Everything under these folders belongs to this deck. The worklog scans them for git activity.")
                 }
             }
             .formStyle(.grouped)
@@ -50,15 +51,19 @@ struct DeckSettingsView: View {
             }
             .padding(12)
         }
-        .frame(width: 480, height: 440)
+        .frame(width: 480, height: 470)
         .onAppear { profile = identity.profile(deck.slug) }
     }
 
-    private func addRepo() {
-        let trimmed = newRepo.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        profile.repos.append(trimmed)
-        newRepo = ""
+    private func addFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Choose"
+        if panel.runModal() == .OK, let url = panel.url, !profile.folders.contains(url.path) {
+            profile.folders.append(url.path)
+        }
     }
 
     private func save() {

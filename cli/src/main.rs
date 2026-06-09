@@ -111,7 +111,7 @@ struct Profile {
     #[serde(default)]
     author_email: String,
     #[serde(default)]
-    repos: Vec<String>,
+    folders: Vec<String>,
 }
 
 fn main() {
@@ -161,12 +161,19 @@ fn mcp_bin() -> PathBuf {
 
 fn worklog(slug: &str) {
     let profile = read_profile(slug);
-    if profile.repos.is_empty() {
-        eprintln!("no repositories configured for this deck");
+    if profile.folders.is_empty() {
+        eprintln!("no folders configured for this deck");
         return;
     }
+    let mut repos: Vec<String> = Vec::new();
+    for folder in &profile.folders {
+        repos.extend(repos_in(folder));
+    }
+    repos.sort();
+    repos.dedup();
+
     let mut sections = Vec::new();
-    for repo in &profile.repos {
+    for repo in &repos {
         if remote_ok(repo, &profile.git_provider) == Some(false) {
             eprintln!(
                 "skipping {repo}: remote does not match provider \"{}\"",
@@ -185,18 +192,43 @@ fn worklog(slug: &str) {
         sections.push(format!("{name}\n{commits}"));
     }
     if sections.is_empty() {
-        eprintln!("no commits today in this deck's repositories");
+        eprintln!("no commits today in this deck's folders");
         return;
     }
     daily(slug, format!("### Worklog\n\n{}", sections.join("\n\n")));
     println!("added worklog to {slug}");
 }
 
+fn repos_in(folder: &str) -> Vec<String> {
+    let mut repos = Vec::new();
+    let path = Path::new(folder);
+    if is_git_repo(path) {
+        repos.push(folder.to_string());
+    }
+    if let Ok(entries) = fs::read_dir(path) {
+        for entry in entries.flatten() {
+            let child = entry.path();
+            if child.is_dir() && is_git_repo(&child) {
+                repos.push(child.display().to_string());
+            }
+        }
+    }
+    repos
+}
+
+fn is_git_repo(path: &Path) -> bool {
+    path.join(".git").exists()
+}
+
 fn which(path: &str) {
     let target = canonical(path);
     for deck in read_decks() {
         let profile = read_profile(&deck.slug);
-        if profile.repos.iter().any(|repo| canonical(repo) == target) {
+        let owned = profile.folders.iter().any(|folder| {
+            let root = canonical(folder);
+            target == root || target.starts_with(&format!("{root}/"))
+        });
+        if owned {
             println!("{}", deck.slug);
             return;
         }
@@ -650,10 +682,10 @@ mod tests {
 
     #[test]
     fn profile_parses_swift_keys() {
-        let json = r#"{"gitProvider":"gitlab","authorEmail":"me@equo.dev","repos":["/a","/b"],"accountID":"X"}"#;
+        let json = r#"{"gitProvider":"gitlab","authorEmail":"me@equo.dev","folders":["/a","/b"],"accountID":"X"}"#;
         let profile: Profile = serde_json::from_str(json).unwrap();
         assert_eq!(profile.git_provider, "gitlab");
         assert_eq!(profile.author_email, "me@equo.dev");
-        assert_eq!(profile.repos.len(), 2);
+        assert_eq!(profile.folders.len(), 2);
     }
 }
