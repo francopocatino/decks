@@ -45,6 +45,23 @@ struct AnthropicClient {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    func validate(apiKey: String) async -> Result<Void, ClientError> {
+        guard let endpoint = URL(string: "https://api.anthropic.com/v1/models") else {
+            return .failure(.malformed)
+        }
+        var request = URLRequest(url: endpoint)
+        request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+        request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        guard
+            let (data, response) = try? await URLSession.shared.data(for: request),
+            let http = response as? HTTPURLResponse
+        else { return .failure(.malformed) }
+        if http.statusCode == 200 {
+            return .success(())
+        }
+        return .failure(.http(http.statusCode, String(data: data, encoding: .utf8) ?? ""))
+    }
+
     private struct RequestBody: Encodable {
         let model: String
         let maxTokens: Int
