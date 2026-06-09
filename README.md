@@ -5,7 +5,7 @@
 <h1 align="center">Decks</h1>
 
 <p align="center">
-  Per-company notes for macOS, organized by context — built so work contexts never bleed into each other, with deep Claude integration.
+  Notes for macOS, organized by context — built so the things you switch between never bleed into each other, with deep Claude integration.
 </p>
 
 <p align="center">
@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/macOS-15%2B-black.svg" alt="macOS 15+">
 </p>
 
-Each company, client or project is a *deck*. A deck holds four sections:
+Each project or context you switch between is a *deck*. A deck holds four sections:
 
 - **Daily** — a dated log for standups and things to bring up.
 - **To-dos** — what to do or review, with a checkbox.
@@ -36,7 +36,8 @@ That builds a native `Decks.app`, installs it, and launches it. Right-click the 
 ## What it does
 
 - Native macOS app (SwiftUI), no Electron.
-- One deck per company/client/project, with rename / archive / delete, drag-to-reorder, and a sidebar that shows open to-do counts.
+- One deck per project or context, with rename / archive / delete, drag-to-reorder, and a sidebar that shows open to-do counts.
+- Split the deck into panes (two columns, or a stacked pair beside a third) so you can keep, say, the daily and notes side by side with your to-dos.
 - Live sync: edits from the CLI or an agent show up in the open app within a second or two.
 - Per-deck identity: git provider and commit email, project folders, which AI account the deck uses, and AI instructions (language, daily format, tone). API keys live in the macOS Keychain.
 - Ask this deck: an in-app chat scoped to one deck, with persistent memory.
@@ -59,7 +60,7 @@ Then ask Claude — in Claude Code or Claude Desktop — to operate any deck by 
 - "fill the daily of nexus with what we did this session"
 - "archive invicto"
 
-`decks mcp-config` prints the ready-to-paste config. To keep a work account isolated, register a server **scoped** to one deck in that account's client only: `decks-mcp --deck <slug>` — it can never see another deck. The account boundary is which client/login you register the server in.
+`decks mcp-config` prints the ready-to-paste config. To keep an account isolated, register a server **scoped** to one deck in that account's client only: `decks-mcp --deck <slug>` — it can never see another deck. The account boundary is which client/login you register the server in.
 
 ## Ask this deck (in-app AI)
 
@@ -86,7 +87,7 @@ Also: `link`/`unlink`, `remove` (to-do), `rename`/`archive`/`unarchive`/`delete`
 
 ## Worklog
 
-`decks worklog <slug>` scans the deck's folders for git repositories, collects today's commits filtered to the deck's commit email, and prepends them to the daily log. A repo whose `origin` remote doesn't match the deck's git provider is skipped, so one job's commits never land in another's worklog. `decks which <path>` resolves a path to the deck whose folder contains it — together they make a Claude Code SessionEnd hook:
+`decks worklog <slug>` scans the deck's folders for git repositories, collects today's commits filtered to the deck's commit email, and prepends them to the daily log. A repo whose `origin` remote doesn't match the deck's git provider is skipped, so one context's commits never land in another's worklog. `decks which <path>` resolves a path to the deck whose folder contains it — together they make a Claude Code SessionEnd hook:
 
 ```
 deck=$(decks which "$PWD") && [ -n "$deck" ] && decks worklog "$deck"

@@ -11,6 +11,7 @@ final class DecksStore {
     private var linksByDeck: [String: [Link]] = [:]
     private var dailyByDeck: [String: String] = [:]
     private var notesByDeck: [String: String] = [:]
+    private var layoutByDeck: [String: DeckLayout] = [:]
     private var saveTasks: [String: Task<Void, Never>] = [:]
     private var lastSignature = 0
 
@@ -48,6 +49,7 @@ final class DecksStore {
         linksByDeck[slug] = []
         dailyByDeck[slug] = ""
         notesByDeck[slug] = ""
+        layoutByDeck[slug] = DeckLayout()
         select(slug)
     }
 
@@ -90,6 +92,7 @@ final class DecksStore {
         linksByDeck[slug] = nil
         dailyByDeck[slug] = nil
         notesByDeck[slug] = nil
+        layoutByDeck[slug] = nil
         try? FileManager.default.removeItem(at: Storage.deckDirectory(slug))
         if activeSlug == slug {
             activeSlug = visibleDecks.first?.slug
@@ -173,6 +176,15 @@ final class DecksStore {
         scheduleSave("notes-\(slug)") { Storage.writeString(text, to: url) }
     }
 
+    // MARK: Layout
+
+    func layout(_ slug: String) -> DeckLayout { layoutByDeck[slug] ?? DeckLayout() }
+
+    func setLayout(_ layout: DeckLayout, for slug: String) {
+        layoutByDeck[slug] = layout
+        Storage.writeJSON(layout, to: Storage.deckDirectory(slug).appendingPathComponent("layout.json"))
+    }
+
     // MARK: Loading
 
     private func load() {
@@ -242,6 +254,9 @@ final class DecksStore {
         if saveTasks["notes-\(slug)"] == nil {
             notesByDeck[slug] = Storage.readString(directory.appendingPathComponent("notes.md"))
         }
+        var layout = Storage.readJSON(DeckLayout.self, at: directory.appendingPathComponent("layout.json")) ?? DeckLayout()
+        layout.normalize()
+        layoutByDeck[slug] = layout
     }
 
     // MARK: Helpers

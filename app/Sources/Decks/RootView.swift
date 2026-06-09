@@ -6,7 +6,6 @@ struct RootView: View {
     @Environment(UpdateChecker.self) private var updates
     @Environment(IdentityStore.self) private var identity
     @Environment(ChatStore.self) private var chat
-    @State private var section: DeckSection = .daily
     @State private var showingNewDeck = false
     @State private var newDeckName = ""
     @State private var renaming: Deck?
@@ -51,12 +50,13 @@ struct RootView: View {
             }
         } detail: {
             if let deck = store.activeDeck {
-                DeckDetailView(deck: deck, section: $section)
+                DeckDetailView(deck: deck)
+                    .id(deck.slug)
             } else {
                 ContentUnavailableView(
                     "No deck yet",
                     systemImage: "rectangle.stack.badge.plus",
-                    description: Text("Create one for each company or project you keep notes for.")
+                    description: Text("Create one for each project or context you switch between.")
                 )
             }
         }
@@ -175,7 +175,7 @@ private struct DeckNameSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text(title).font(.headline)
-            TextField("Company or project", text: $name)
+            TextField("Project or context", text: $name)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 280)
                 .onSubmit(onConfirm)
