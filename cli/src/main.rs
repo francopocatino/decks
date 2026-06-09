@@ -132,6 +132,8 @@ struct Profile {
     instructions: String,
     #[serde(default, rename = "accountID")]
     account_id: Option<String>,
+    #[serde(default, rename = "gitConnectorID")]
+    git_connector_id: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -321,17 +323,20 @@ fn effective_profile(slug: &str) -> Profile {
         if profile.account_id.is_none() {
             profile.account_id = inherited.account_id;
         }
+        if profile.git_connector_id.is_none() {
+            profile.git_connector_id = inherited.git_connector_id;
+        }
     }
     profile
 }
 
 fn provider_worklog(slug: &str) -> Option<String> {
-    let account_id = effective_profile(slug).account_id?;
+    let connector_id = effective_profile(slug).git_connector_id?;
     let kind = read_connectors()
         .into_iter()
-        .find(|connector| connector.id == account_id)?
+        .find(|connector| connector.id == connector_id)?
         .kind;
-    let token = keychain_token(&account_id)?;
+    let token = keychain_token(&connector_id)?;
     let (heading, lines) = match kind.as_str() {
         "github" => ("Pull requests", github_worklog(&token)),
         "gitlab" => ("Merge requests", gitlab_worklog(&token)),
