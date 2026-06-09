@@ -38,6 +38,8 @@ enum Command {
     Note { slug: String, text: Vec<String> },
     /// Prepend a dated entry to a deck's daily log
     Daily { slug: String, text: Vec<String> },
+    /// Replace a deck's entire daily log with the given markdown
+    SetDaily { slug: String, text: String },
     /// Print Claude MCP config for a server scoped to one deck
     McpConfig { slug: String },
     /// Summarize today's git activity in the deck's repos into its daily log
@@ -138,6 +140,7 @@ fn main() {
         Command::Done { slug, index } => done(&slug, index),
         Command::Note { slug, text } => note(&slug, text.join(" ")),
         Command::Daily { slug, text } => daily(&slug, text.join(" ")),
+        Command::SetDaily { slug, text } => set_daily(&slug, text),
         Command::McpConfig { slug } => mcp_config(&slug),
         Command::Worklog { slug } => worklog(&slug),
         Command::Which { path } => which(&path),
@@ -529,6 +532,14 @@ fn daily(slug: &str, text: String) {
         format!("{header}{text}\n\n{current}")
     };
     let _ = fs::write(path, next);
+}
+
+fn set_daily(slug: &str, text: String) {
+    let mut body = text;
+    if !body.is_empty() && !body.ends_with('\n') {
+        body.push('\n');
+    }
+    let _ = fs::write(root().join(slug).join("daily.md"), body);
 }
 
 fn root() -> PathBuf {
