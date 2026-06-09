@@ -14,6 +14,9 @@ jobs:
       - name: Build macOS app
         run: swift build --package-path app
 
+      - name: Test macOS app
+        run: swift test --package-path app
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
