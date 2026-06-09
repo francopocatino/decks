@@ -128,6 +128,16 @@ struct Profile {
     folders: Vec<String>,
     #[serde(default)]
     instructions: String,
+    #[serde(default, rename = "accountID")]
+    account_id: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Connector {
+    id: String,
+    #[serde(default)]
+    kind: String,
 }
 
 fn main() {
@@ -181,10 +191,6 @@ fn mcp_bin() -> PathBuf {
 
 fn worklog(slug: &str) {
     let profile = effective_profile(slug);
-    if profile.folders.is_empty() {
-        eprintln!("no folders configured for this deck");
-        return;
-    }
     let mut repos: Vec<String> = Vec::new();
     for folder in &profile.folders {
         repos.extend(repos_in(folder));
@@ -211,11 +217,20 @@ fn worklog(slug: &str) {
             .unwrap_or(repo);
         sections.push(format!("{name}\n{commits}"));
     }
-    if sections.is_empty() {
-        eprintln!("no commits today in this deck's folders");
+
+    let mut body = sections.join("\n\n");
+    if let Some(provider) = provider_worklog(slug) {
+        if !body.is_empty() {
+            body.push_str("\n\n");
+        }
+        body.push_str(&provider);
+    }
+
+    if body.is_empty() {
+        eprintln!("nothing to log today");
         return;
     }
-    daily(slug, format!("### Worklog\n\n{}", sections.join("\n\n")));
+    daily(slug, format!("### Worklog\n\n{body}"));
     println!("added worklog to {slug}");
 }
 
@@ -301,8 +316,144 @@ fn effective_profile(slug: &str) -> Profile {
         if profile.instructions.is_empty() {
             profile.instructions = inherited.instructions;
         }
+        if profile.account_id.is_none() {
+            profile.account_id = inherited.account_id;
+        }
     }
     profile
+}
+
+fn provider_worklog(slug: &str) -> Option<String> {
+    let account_id = effective_profile(slug).account_id?;
+    let kind = read_connectors()
+        .into_iter()
+        .find(|connector| connector.id == account_id)?
+        .kind;
+    let token = keychain_token(&account_id)?;
+    let (heading, lines) = match kind.as_str() {
+        "github" => ("Pull requests", github_worklog(&token)),
+        "gitlab" => ("Merge requests", gitlab_worklog(&token)),
+        _ => return None,
+    };
+    if lines.is_empty() {
+        return None;
+    }
+    Some(format!("### {heading}\n\n{}", lines.join("\n")))
+}
+
+fn read_connectors() -> Vec<Connector> {
+    fs::read_to_string(root().join("accounts.json"))
+        .ok()
+        .and_then(|data| serde_json::from_str(&data).ok())
+        .unwrap_or_default()
+}
+
+fn keychain_token(account_id: &str) -> Option<String> {
+    let output = Process::new("security")
+        .args([
+            "find-generic-password",
+            "-s",
+            "com.francopocatino.decks",
+            "-a",
+            &format!("account/{account_id}"),
+            "-w",
+        ])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let token = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    (!token.is_empty()).then_some(token)
+}
+
+fn github_worklog(token: &str) -> Vec<String> {
+    let auth = format!("Authorization: Bearer {token}");
+    let login = curl(&[
+        "-H",
+        &auth,
+        "-H",
+        "Accept: application/vnd.github+json",
+        "https://api.github.com/user",
+    ])
+    .and_then(|body| serde_json::from_str::<serde_json::Value>(&body).ok())
+    .and_then(|value| value.get("login")?.as_str().map(str::to_string));
+    let Some(login) = login else {
+        return Vec::new();
+    };
+    let query = percent_encode(&format!("is:pr author:{login} updated:>={}", &now()[..10]));
+    let url = format!("https://api.github.com/search/issues?q={query}");
+    curl(&[
+        "-H",
+        &auth,
+        "-H",
+        "Accept: application/vnd.github+json",
+        &url,
+    ])
+    .map(|body| parse_github_search(&body))
+    .unwrap_or_default()
+}
+
+fn gitlab_worklog(token: &str) -> Vec<String> {
+    let header = format!("PRIVATE-TOKEN: {token}");
+    let url = format!(
+        "https://gitlab.com/api/v4/merge_requests?scope=created_by_me&state=all&updated_after={}T00:00:00Z",
+        &now()[..10]
+    );
+    curl(&["-H", &header, &url])
+        .map(|body| parse_gitlab_items(&body))
+        .unwrap_or_default()
+}
+
+fn parse_github_search(body: &str) -> Vec<String> {
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(body) else {
+        return Vec::new();
+    };
+    let Some(items) = value.get("items").and_then(serde_json::Value::as_array) else {
+        return Vec::new();
+    };
+    items.iter().filter_map(format_item).collect()
+}
+
+fn parse_gitlab_items(body: &str) -> Vec<String> {
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(body) else {
+        return Vec::new();
+    };
+    let Some(items) = value.as_array() else {
+        return Vec::new();
+    };
+    items.iter().filter_map(format_item).collect()
+}
+
+fn format_item(item: &serde_json::Value) -> Option<String> {
+    let title = item.get("title")?.as_str()?;
+    let url = item
+        .get("html_url")
+        .or_else(|| item.get("web_url"))?
+        .as_str()?;
+    Some(format!("- {title} ({url})"))
+}
+
+fn curl(args: &[&str]) -> Option<String> {
+    let output = Process::new("curl").arg("-s").args(args).output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let text = String::from_utf8_lossy(&output.stdout).to_string();
+    (!text.is_empty()).then_some(text)
+}
+
+fn percent_encode(input: &str) -> String {
+    let mut out = String::new();
+    for byte in input.bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(byte as char);
+            }
+            _ => out.push_str(&format!("%{byte:02X}")),
+        }
+    }
+    out
 }
 
 fn read_profile(slug: &str) -> Profile {
@@ -782,6 +933,29 @@ mod tests {
         let stamp = now();
         assert_eq!(stamp.len(), 20);
         assert!(stamp.ends_with('Z'));
+    }
+
+    #[test]
+    fn parses_github_search_items() {
+        let body = r#"{"items":[{"title":"Fix auth","html_url":"https://github.com/x/y/pull/1"},{"title":"No url"}]}"#;
+        let lines = parse_github_search(body);
+        assert_eq!(lines, vec!["- Fix auth (https://github.com/x/y/pull/1)"]);
+    }
+
+    #[test]
+    fn parses_gitlab_items() {
+        let body =
+            r#"[{"title":"Bump deps","web_url":"https://gitlab.com/x/y/-/merge_requests/2"}]"#;
+        let lines = parse_gitlab_items(body);
+        assert_eq!(
+            lines,
+            vec!["- Bump deps (https://gitlab.com/x/y/-/merge_requests/2)"]
+        );
+    }
+
+    #[test]
+    fn percent_encode_escapes_query() {
+        assert_eq!(percent_encode("is:pr a b"), "is%3Apr%20a%20b");
     }
 
     #[test]
