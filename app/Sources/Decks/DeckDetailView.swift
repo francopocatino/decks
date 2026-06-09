@@ -68,7 +68,7 @@ struct DeckDetailView: View {
     }
 
     private func pane(_ index: Int) -> some View {
-        PaneView(slug: deck.slug, section: slotBinding(index), showsHeader: layout.mode != .single, accent: deck.color == nil ? nil : deck.accent)
+        PaneView(slug: deck.slug, section: slotBinding(index), showsHeader: layout.mode != .single)
     }
 
     private func slotBinding(_ index: Int) -> Binding<DeckSection> {
@@ -104,15 +104,11 @@ private struct PaneView: View {
     let slug: String
     @Binding var section: DeckSection
     var showsHeader: Bool
-    var accent: Color?
 
     var body: some View {
         VStack(spacing: 0) {
             if showsHeader {
-                HStack(spacing: 8) {
-                    if let accent {
-                        Circle().fill(accent).frame(width: 8, height: 8)
-                    }
+                HStack {
                     Menu {
                         ForEach(DeckSection.allCases) { option in
                             Button { section = option } label: {
