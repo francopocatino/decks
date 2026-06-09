@@ -105,6 +105,37 @@ fn show_includes_profile_instructions() {
 }
 
 #[test]
+fn sub_deck_inherits_and_shares() {
+    let dir = temp_dir("subdeck");
+
+    run(&dir, &["new", "Equo"]);
+    run(&dir, &["new", "Alpha"]);
+
+    let profile = r#"{"authorEmail":"me@equo.dev","instructions":"Daily in Spanish."}"#;
+    std::fs::write(dir.join("equo").join("profile.json"), profile).unwrap();
+    run(&dir, &["link", "equo", "https://git.equo.dev/repo", "Repo"]);
+
+    run(&dir, &["set-parent", "alpha", "equo"]);
+    let deck = std::fs::read_to_string(dir.join("alpha").join("deck.json")).unwrap();
+    assert!(deck.contains("\"parent\": \"equo\""), "{deck}");
+
+    let show = run(&dir, &["show", "alpha", "--json"]);
+    assert!(show.contains("Daily in Spanish."), "{show}");
+    assert!(show.contains("\"parent\": \"equo\""), "{show}");
+    assert!(show.contains("git.equo.dev/repo"), "{show}");
+
+    run(&dir, &["set-parent", "equo", "alpha"]);
+    let equo = std::fs::read_to_string(dir.join("equo").join("deck.json")).unwrap();
+    assert!(!equo.contains("\"parent\""), "{equo}");
+
+    run(&dir, &["delete", "equo"]);
+    let orphaned = std::fs::read_to_string(dir.join("alpha").join("deck.json")).unwrap();
+    assert!(!orphaned.contains("\"parent\""), "{orphaned}");
+
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
 fn reorder_sets_list_order() {
     let dir = temp_dir("reorder");
 
