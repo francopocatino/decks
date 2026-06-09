@@ -8,7 +8,7 @@ struct DailyView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            MarkdownToggle(preview: $preview)
+            header
             if preview {
                 ScrollView {
                     MarkdownView(text: store.daily(slug))
@@ -21,21 +21,37 @@ struct DailyView: View {
                     .padding(16)
             }
         }
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
+    }
+
+    private var header: some View {
+        HStack(spacing: 8) {
+            Button {
+                store.appendDailyEntry(to: slug)
+            } label: {
+                Label("Today", systemImage: "calendar.badge.plus")
+            }
+            .buttonStyle(.borderless)
+
+            Spacer()
+
+            if !store.daily(slug).isEmpty {
                 Button(action: copyToday) {
-                    Label("Copy today", systemImage: "doc.on.doc")
+                    Label("Copy", systemImage: "doc.on.doc")
                 }
-                .disabled(store.daily(slug).isEmpty)
+                .buttonStyle(.borderless)
+                .help("Copy today's entry to the clipboard")
             }
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    store.appendDailyEntry(to: slug)
-                } label: {
-                    Label("Today", systemImage: "calendar.badge.plus")
-                }
+
+            Picker("", selection: $preview) {
+                Image(systemName: "pencil").tag(false)
+                Image(systemName: "eye").tag(true)
             }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .fixedSize()
         }
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
     }
 
     private var dailyBinding: Binding<String> {
