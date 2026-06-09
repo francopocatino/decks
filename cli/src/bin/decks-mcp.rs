@@ -123,6 +123,58 @@ fn tools() -> Value {
                 json!({ "slug": text("Deck slug"), "text": text("Daily entry text") }),
                 json!(["slug", "text"]),
             )
+        },
+        {
+            "name": "add_link",
+            "description": "Add a link to a deck.",
+            "inputSchema": schema(
+                json!({ "slug": text("Deck slug"), "url": text("Link URL"), "label": text("Optional label") }),
+                json!(["slug", "url"]),
+            )
+        },
+        {
+            "name": "remove_link",
+            "description": "Remove a link from a deck by its position.",
+            "inputSchema": schema(
+                json!({ "slug": text("Deck slug"), "index": { "type": "integer", "description": "Link position" } }),
+                json!(["slug", "index"]),
+            )
+        },
+        {
+            "name": "remove_todo",
+            "description": "Remove a to-do from a deck by its position.",
+            "inputSchema": schema(
+                json!({ "slug": text("Deck slug"), "index": { "type": "integer", "description": "To-do position" } }),
+                json!(["slug", "index"]),
+            )
+        },
+        {
+            "name": "rename_deck",
+            "description": "Rename a deck.",
+            "inputSchema": schema(
+                json!({ "slug": text("Deck slug"), "name": text("New name") }),
+                json!(["slug", "name"]),
+            )
+        },
+        {
+            "name": "archive_deck",
+            "description": "Archive a deck.",
+            "inputSchema": schema(json!({ "slug": text("Deck slug") }), json!(["slug"]))
+        },
+        {
+            "name": "unarchive_deck",
+            "description": "Unarchive a deck.",
+            "inputSchema": schema(json!({ "slug": text("Deck slug") }), json!(["slug"]))
+        },
+        {
+            "name": "delete_deck",
+            "description": "Delete a deck and all its data.",
+            "inputSchema": schema(json!({ "slug": text("Deck slug") }), json!(["slug"]))
+        },
+        {
+            "name": "worklog",
+            "description": "Summarize today's git activity in the deck's repos into its daily log.",
+            "inputSchema": schema(json!({ "slug": text("Deck slug") }), json!(["slug"]))
         }
     ])
 }
@@ -194,6 +246,56 @@ fn call_tool(message: &Value, scope: Option<&str>) -> Result<String, String> {
             let slug = resolve(arg("slug"))?;
             let text = arg("text");
             run(&["daily", slug.as_str(), text.as_str()]).map(|_| "Daily entry added.".to_string())
+        }
+        "add_link" => {
+            let slug = resolve(arg("slug"))?;
+            let url = arg("url");
+            let label = arg("label");
+            if label.is_empty() {
+                run(&["link", slug.as_str(), url.as_str()]).map(|_| "Link added.".to_string())
+            } else {
+                run(&["link", slug.as_str(), url.as_str(), label.as_str()])
+                    .map(|_| "Link added.".to_string())
+            }
+        }
+        "remove_link" => {
+            let slug = resolve(arg("slug"))?;
+            let index = args
+                .get("index")
+                .and_then(Value::as_i64)
+                .unwrap_or(-1)
+                .to_string();
+            run(&["unlink", slug.as_str(), index.as_str()]).map(|_| "Link removed.".to_string())
+        }
+        "remove_todo" => {
+            let slug = resolve(arg("slug"))?;
+            let index = args
+                .get("index")
+                .and_then(Value::as_i64)
+                .unwrap_or(-1)
+                .to_string();
+            run(&["remove", slug.as_str(), index.as_str()]).map(|_| "To-do removed.".to_string())
+        }
+        "rename_deck" => {
+            let slug = resolve(arg("slug"))?;
+            let name = arg("name");
+            run(&["rename", slug.as_str(), name.as_str()]).map(|_| "Deck renamed.".to_string())
+        }
+        "archive_deck" => {
+            let slug = resolve(arg("slug"))?;
+            run(&["archive", slug.as_str()]).map(|_| "Deck archived.".to_string())
+        }
+        "unarchive_deck" => {
+            let slug = resolve(arg("slug"))?;
+            run(&["unarchive", slug.as_str()]).map(|_| "Deck unarchived.".to_string())
+        }
+        "delete_deck" => {
+            let slug = resolve(arg("slug"))?;
+            run(&["delete", slug.as_str()]).map(|_| "Deck deleted.".to_string())
+        }
+        "worklog" => {
+            let slug = resolve(arg("slug"))?;
+            run(&["worklog", slug.as_str()])
         }
         other => Err(format!("unknown tool: {other}")),
     }

@@ -44,6 +44,24 @@ enum Command {
     Worklog { slug: String },
     /// Print the deck slug that owns a repository path
     Which { path: String },
+    /// Add a link to a deck
+    Link {
+        slug: String,
+        url: String,
+        label: Vec<String>,
+    },
+    /// Remove a link by its position
+    Unlink { slug: String, index: usize },
+    /// Remove a to-do by its position
+    Remove { slug: String, index: usize },
+    /// Rename a deck
+    Rename { slug: String, name: Vec<String> },
+    /// Archive a deck
+    Archive { slug: String },
+    /// Unarchive a deck
+    Unarchive { slug: String },
+    /// Delete a deck and all its data
+    Delete { slug: String },
 }
 
 #[derive(Serialize, Deserialize)]
@@ -52,6 +70,8 @@ struct Deck {
     slug: String,
     name: String,
     created_at: String,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    archived: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -107,6 +127,13 @@ fn main() {
         Command::McpConfig { slug } => mcp_config(&slug),
         Command::Worklog { slug } => worklog(&slug),
         Command::Which { path } => which(&path),
+        Command::Link { slug, url, label } => link(&slug, &url, label.join(" ")),
+        Command::Unlink { slug, index } => unlink(&slug, index),
+        Command::Remove { slug, index } => remove(&slug, index),
+        Command::Rename { slug, name } => rename(&slug, name.join(" ")),
+        Command::Archive { slug } => set_archived(&slug, true),
+        Command::Unarchive { slug } => set_archived(&slug, false),
+        Command::Delete { slug } => delete(&slug),
     }
 }
 
@@ -302,6 +329,7 @@ fn new(name: String) {
         slug,
         name,
         created_at: now(),
+        archived: None,
     };
     if let Ok(json) = serde_json::to_string_pretty(&deck) {
         let _ = fs::write(dir.join("deck.json"), json);
@@ -448,6 +476,105 @@ fn read_text(slug: &str, file: &str) -> String {
 fn write_todos(slug: &str, todos: &[Todo]) {
     if let Ok(json) = serde_json::to_string_pretty(todos) {
         let _ = fs::write(root().join(slug).join("todos.json"), json);
+    }
+}
+
+fn write_links(slug: &str, links: &[Link]) {
+    if let Ok(json) = serde_json::to_string_pretty(links) {
+        let _ = fs::write(root().join(slug).join("links.json"), json);
+    }
+}
+
+fn link(slug: &str, url: &str, label: String) {
+    let url = url.trim();
+    if url.is_empty() {
+        eprintln!("a url is required");
+        return;
+    }
+    let label = label.trim();
+    let label = if label.is_empty() {
+        url.to_string()
+    } else {
+        label.to_string()
+    };
+    let mut links = read_links(slug);
+    links.push(Link {
+        id: Uuid::new_v4().to_string().to_uppercase(),
+        label,
+        url: url.to_string(),
+        note: String::new(),
+    });
+    write_links(slug, &links);
+}
+
+fn unlink(slug: &str, index: usize) {
+    let mut links = read_links(slug);
+    if index < links.len() {
+        links.remove(index);
+        write_links(slug, &links);
+    } else {
+        eprintln!("no link at index {index}");
+    }
+}
+
+fn remove(slug: &str, index: usize) {
+    let mut todos = read_todos(slug);
+    if index < todos.len() {
+        todos.remove(index);
+        write_todos(slug, &todos);
+    } else {
+        eprintln!("no to-do at index {index}");
+    }
+}
+
+fn rename(slug: &str, name: String) {
+    let name = name.trim();
+    if name.is_empty() {
+        eprintln!("a name is required");
+        return;
+    }
+    match read_deck(slug) {
+        Some(mut deck) => {
+            deck.name = name.to_string();
+            write_deck(&deck);
+        }
+        None => eprintln!("no deck \"{slug}\""),
+    }
+}
+
+fn set_archived(slug: &str, archived: bool) {
+    match read_deck(slug) {
+        Some(mut deck) => {
+            deck.archived = archived.then_some(true);
+            write_deck(&deck);
+        }
+        None => eprintln!("no deck \"{slug}\""),
+    }
+}
+
+fn delete(slug: &str) {
+    let _ = fs::remove_dir_all(root().join(slug));
+    let state_path = root().join("state.json");
+    if let Ok(data) = fs::read_to_string(&state_path)
+        && let Ok(mut state) = serde_json::from_str::<serde_json::Value>(&data)
+        && state.get("active").and_then(serde_json::Value::as_str) == Some(slug)
+    {
+        state["active"] = serde_json::Value::Null;
+        if let Ok(json) = serde_json::to_string_pretty(&state) {
+            let _ = fs::write(&state_path, json);
+        }
+    }
+}
+
+fn read_deck(slug: &str) -> Option<Deck> {
+    fs::read_to_string(root().join(slug).join("deck.json"))
+        .ok()
+        .and_then(|data| serde_json::from_str(&data).ok())
+}
+
+fn write_deck(deck: &Deck) {
+    if let Ok(json) = serde_json::to_string_pretty(deck) {
+        let _ = fs::write(root().join(&deck.slug).join("deck.json"), json);
     }
 }
 
