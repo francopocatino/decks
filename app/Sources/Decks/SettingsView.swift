@@ -208,8 +208,7 @@ struct DecksSettingsView: View {
         Label {
             Text(deck.name)
         } icon: {
-            Image(systemName: deck.isArchived ? "archivebox" : "rectangle.stack")
-                .foregroundStyle(deck.accent)
+            DeckIcon(deck: deck)
         }
         .tag(deck.slug)
     }
