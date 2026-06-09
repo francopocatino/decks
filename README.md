@@ -37,6 +37,7 @@ That builds a native `Decks.app`, installs it, and launches it. Right-click the 
 
 - Native macOS app (SwiftUI), no Electron.
 - One deck per project or context, with rename / archive / delete, drag-to-reorder, and a sidebar that shows open to-do counts.
+- Sub-decks: nest projects under a parent (one level). A sub-deck inherits the parent's AI account, commit email, git provider and instructions when its own are empty, and sees the parent's links — to-dos and dailies stay per sub-deck.
 - Split the deck into panes (two columns, or a stacked pair beside a third) so you can keep, say, the daily and notes side by side with your to-dos.
 - Live sync: edits from the CLI or an agent show up in the open app within a second or two.
 - Per-deck identity: git provider and commit email, project folders, which AI account the deck uses, and AI instructions (language, daily format, tone). API keys live in the macOS Keychain.
@@ -83,7 +84,7 @@ cargo run -- daily acme "shipped auth"  # add a dated daily entry
 cargo run -- show acme --json           # machine-readable output
 ```
 
-Also: `link`/`unlink`, `remove`/`edit` (to-do), `reorder`/`rename`/`archive`/`unarchive`/`delete` (deck), `worklog`, `which`. Every action is exposed as an MCP tool too.
+Also: `link`/`unlink`, `remove`/`edit` (to-do), `reorder`/`set-parent`/`rename`/`archive`/`unarchive`/`delete` (deck), `worklog`, `which`. Every action is exposed as an MCP tool too.
 
 ## Worklog
 
