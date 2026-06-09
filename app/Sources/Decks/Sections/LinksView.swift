@@ -9,7 +9,7 @@ struct LinksView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if store.links(slug).isEmpty {
+            if store.links(slug).isEmpty, sharedLinks.isEmpty {
                 ContentUnavailableView(
                     "No links",
                     systemImage: "link",
@@ -21,6 +21,13 @@ struct LinksView: View {
                     ForEach(store.links(slug)) { link in
                         row(link)
                     }
+                    if let parent, !sharedLinks.isEmpty {
+                        Section("Shared from \(parent.name)") {
+                            ForEach(sharedLinks) { link in
+                                row(link, shared: true)
+                            }
+                        }
+                    }
                 }
                 .listStyle(.inset)
             }
@@ -29,12 +36,21 @@ struct LinksView: View {
         }
     }
 
-    private func row(_ link: Link) -> some View {
+    private var parent: Deck? {
+        store.deck(slug)?.parent.flatMap { store.deck($0) }
+    }
+
+    private var sharedLinks: [Link] {
+        guard let parent else { return [] }
+        return store.links(parent.slug)
+    }
+
+    private func row(_ link: Link, shared: Bool = false) -> some View {
         Button {
             open(link.url)
         } label: {
             HStack(spacing: 10) {
-                Image(systemName: "link")
+                Image(systemName: shared ? "link.circle" : "link")
                     .foregroundStyle(.secondary)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(link.label)
@@ -48,8 +64,10 @@ struct LinksView: View {
         }
         .buttonStyle(.plain)
         .contextMenu {
-            Button("Delete", role: .destructive) {
-                store.deleteLink(link.id, in: slug)
+            if !shared {
+                Button("Delete", role: .destructive) {
+                    store.deleteLink(link.id, in: slug)
+                }
             }
         }
     }

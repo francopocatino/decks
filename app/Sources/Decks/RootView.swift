@@ -8,6 +8,7 @@ struct RootView: View {
     @Environment(ChatStore.self) private var chat
     @State private var showingNewDeck = false
     @State private var newDeckName = ""
+    @State private var newDeckParent: String?
     @State private var renaming: Deck?
     @State private var renameText = ""
     @State private var pendingDelete: Deck?
@@ -17,10 +18,22 @@ struct RootView: View {
         NavigationSplitView {
             List(selection: selectionBinding) {
                 Section("Decks") {
-                    ForEach(store.visibleDecks) { deck in
-                        deckRow(deck)
+                    ForEach(store.topLevelVisibleDecks()) { deck in
+                        let children = store.visibleChildren(of: deck.slug)
+                        if children.isEmpty {
+                            deckRow(deck)
+                        } else {
+                            DisclosureGroup {
+                                ForEach(children) { child in
+                                    deckRow(child)
+                                }
+                                .onMove { store.moveDecks(parent: deck.slug, fromOffsets: $0, toOffset: $1) }
+                            } label: {
+                                deckRow(deck)
+                            }
+                        }
                     }
-                    .onMove { store.moveDecks(fromOffsets: $0, toOffset: $1) }
+                    .onMove { store.moveDecks(parent: nil, fromOffsets: $0, toOffset: $1) }
                 }
                 if !store.archivedDecks.isEmpty {
                     Section("Archived") {
@@ -34,7 +47,7 @@ struct RootView: View {
             .safeAreaInset(edge: .bottom) {
                 HStack {
                     Button {
-                        showingNewDeck = true
+                        startNewDeck(parent: nil)
                     } label: {
                         Label("New deck", systemImage: "plus")
                     }
@@ -61,12 +74,18 @@ struct RootView: View {
             }
         }
         .sheet(isPresented: $showingNewDeck) {
-            DeckNameSheet(title: "New deck", name: $newDeckName, confirmLabel: "Create") {
-                store.createDeck(name: newDeckName)
+            DeckNameSheet(
+                title: newDeckParent == nil ? "New deck" : "New sub-deck",
+                name: $newDeckName,
+                confirmLabel: "Create"
+            ) {
+                store.createDeck(name: newDeckName, parent: newDeckParent)
                 newDeckName = ""
+                newDeckParent = nil
                 showingNewDeck = false
             } onCancel: {
                 newDeckName = ""
+                newDeckParent = nil
                 showingNewDeck = false
             }
         }
@@ -111,6 +130,9 @@ struct RootView: View {
             .contextMenu {
                 Button("Rename") { startRename(deck) }
                 Button("Settings…") { settingsDeck = deck }
+                if deck.parent == nil, !deck.isArchived {
+                    Button("Add sub-deck") { startNewDeck(parent: deck.slug) }
+                }
                 if deck.isArchived {
                     Button("Unarchive") { store.setArchived(deck.slug, false) }
                 } else {
@@ -119,6 +141,12 @@ struct RootView: View {
                 Divider()
                 Button("Delete", role: .destructive) { pendingDelete = deck }
             }
+    }
+
+    private func startNewDeck(parent: String?) {
+        newDeckName = ""
+        newDeckParent = parent
+        showingNewDeck = true
     }
 
     private func badge(for deck: Deck) -> Text? {

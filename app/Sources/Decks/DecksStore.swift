@@ -25,13 +25,31 @@ final class DecksStore {
         return decks.first { $0.slug == activeSlug }
     }
 
+    func deck(_ slug: String) -> Deck? { decks.first { $0.slug == slug } }
+
     var visibleDecks: [Deck] { decks.filter { !$0.isArchived } }
 
     var archivedDecks: [Deck] { decks.filter(\.isArchived) }
 
+    func topLevelVisibleDecks() -> [Deck] {
+        visibleDecks.filter { $0.parent == nil }
+    }
+
+    func visibleChildren(of slug: String) -> [Deck] {
+        visibleDecks.filter { $0.parent == slug }
+    }
+
+    func canHaveParent(_ slug: String) -> Bool {
+        !decks.contains { $0.parent == slug }
+    }
+
+    func parentCandidates(for slug: String) -> [Deck] {
+        decks.filter { $0.slug != slug && $0.parent == nil && !$0.isArchived }
+    }
+
     // MARK: Decks
 
-    func createDeck(name: String) {
+    func createDeck(name: String, parent: String? = nil) {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         let slug = Self.slugify(trimmed)
@@ -40,7 +58,10 @@ final class DecksStore {
             select(slug)
             return
         }
-        let deck = Deck(slug: slug, name: trimmed, createdAt: Date())
+        var deck = Deck(slug: slug, name: trimmed, createdAt: Date())
+        if let parent, decks.contains(where: { $0.slug == parent && $0.parent == nil }) {
+            deck.parent = parent
+        }
         let directory = Storage.deckDirectory(slug)
         Storage.ensureDirectory(directory)
         Storage.writeJSON(deck, to: directory.appendingPathComponent("deck.json"))
@@ -69,20 +90,59 @@ final class DecksStore {
         guard let index = decks.firstIndex(where: { $0.slug == slug }) else { return }
         decks[index].archived = archived ? true : nil
         persist(decks[index])
+        if archived {
+            for child in decks.indices where decks[child].parent == slug {
+                decks[child].parent = nil
+                persist(decks[child])
+            }
+        }
         if archived, activeSlug == slug {
             activeSlug = visibleDecks.first?.slug
             persistActive()
         }
     }
 
-    func moveDecks(fromOffsets source: IndexSet, toOffset destination: Int) {
-        var visible = visibleDecks
-        visible.move(fromOffsets: source, toOffset: destination)
-        decks = visible + archivedDecks
+    func setParent(_ slug: String, to parent: String?) {
+        guard let index = decks.firstIndex(where: { $0.slug == slug }) else { return }
+        guard let parent else {
+            decks[index].parent = nil
+            persist(decks[index])
+            return
+        }
+        guard parent != slug,
+              let target = decks.first(where: { $0.slug == parent }), target.parent == nil,
+              canHaveParent(slug)
+        else { return }
+        decks[index].parent = parent
+        persist(decks[index])
+        decks = flattened(decks)
         Storage.writeJSON(decks.map(\.slug), to: orderURL)
     }
 
+    func moveDecks(parent: String?, fromOffsets source: IndexSet, toOffset destination: Int) {
+        var group = decks.filter { $0.parent == parent && !$0.isArchived }
+        group.move(fromOffsets: source, toOffset: destination)
+        let rest = decks.filter { !($0.parent == parent && !$0.isArchived) }
+        decks = flattened(group + rest)
+        Storage.writeJSON(decks.map(\.slug), to: orderURL)
+    }
+
+    private func flattened(_ all: [Deck]) -> [Deck] {
+        var result: [Deck] = []
+        for top in all.filter({ $0.parent == nil }) {
+            result.append(top)
+            result.append(contentsOf: all.filter { $0.parent == top.slug })
+        }
+        let included = Set(result.map(\.slug))
+        result.append(contentsOf: all.filter { !included.contains($0.slug) })
+        return result
+    }
+
     func deleteDeck(_ slug: String) {
+        for index in decks.indices where decks[index].parent == slug {
+            decks[index].parent = nil
+            persist(decks[index])
+        }
         decks.removeAll { $0.slug == slug }
         if var order = Storage.readJSON([String].self, at: orderURL), order.contains(slug) {
             order.removeAll { $0 == slug }
