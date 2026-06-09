@@ -43,6 +43,11 @@ fn full_flow() {
     assert!(show.contains("shipped auth"), "{show}");
     assert!(show.contains("use sqlite"), "{show}");
 
+    run(&dir, &["edit", "acme-corp", "0", "review", "PR", "215"]);
+    let edited = run(&dir, &["show", "acme-corp", "--json"]);
+    assert!(edited.contains("review PR 215"), "{edited}");
+    assert!(!edited.contains("review PR 214"), "{edited}");
+
     run(&dir, &["done", "acme-corp", "0"]);
     let after = run(&dir, &["list", "--json"]);
     assert!(after.contains("\"openTodos\": 0"), "{after}");

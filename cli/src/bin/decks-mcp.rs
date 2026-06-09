@@ -149,6 +149,14 @@ fn tools() -> Value {
             )
         },
         {
+            "name": "edit_todo",
+            "description": "Replace a to-do's text by its position.",
+            "inputSchema": schema(
+                json!({ "slug": text("Deck slug"), "index": { "type": "integer", "description": "To-do position" }, "text": text("New to-do text") }),
+                json!(["slug", "index", "text"]),
+            )
+        },
+        {
             "name": "rename_deck",
             "description": "Rename a deck.",
             "inputSchema": schema(
@@ -275,6 +283,17 @@ fn call_tool(message: &Value, scope: Option<&str>) -> Result<String, String> {
                 .unwrap_or(-1)
                 .to_string();
             run(&["remove", slug.as_str(), index.as_str()]).map(|_| "To-do removed.".to_string())
+        }
+        "edit_todo" => {
+            let slug = resolve(arg("slug"))?;
+            let index = args
+                .get("index")
+                .and_then(Value::as_i64)
+                .unwrap_or(-1)
+                .to_string();
+            let text = arg("text");
+            run(&["edit", slug.as_str(), index.as_str(), text.as_str()])
+                .map(|_| "To-do edited.".to_string())
         }
         "rename_deck" => {
             let slug = resolve(arg("slug"))?;
