@@ -15,7 +15,8 @@ final class DecksStore {
     private var layoutByDeck: [String: DeckLayout] = [:]
     private var saveTasks: [String: Task<Void, Never>] = [:]
     private var pendingWrites: [String: @MainActor () -> Void] = [:]
-    private var lastSignature = 0
+    private var lastDeckSignatures: [String: Int] = [:]
+    private var lastOrderSignature = 0
 
     init() {
         Storage.ensureDirectory(Storage.root)
@@ -283,33 +284,71 @@ final class DecksStore {
         for deck in decks { loadContent(deck.slug) }
         let state = Storage.readJSON(State.self, at: stateURL)
         activeSlug = state?.active ?? decks.first?.slug
-        lastSignature = Self.directorySignature()
+        lastDeckSignatures = Self.deckSignatures()
+        lastOrderSignature = Self.fileSignature(orderURL)
     }
 
     func reloadIfChanged() {
-        let signature = Self.directorySignature()
-        guard signature != lastSignature else { return }
-        lastSignature = signature
+        let signatures = Self.deckSignatures()
+        let orderSignature = Self.fileSignature(orderURL)
+        guard signatures != lastDeckSignatures || orderSignature != lastOrderSignature else { return }
+
+        let removed = Set(lastDeckSignatures.keys).subtracting(signatures.keys)
+        let changed = signatures.filter { lastDeckSignatures[$0.key] != $0.value }.map(\.key)
+        lastDeckSignatures = signatures
+        lastOrderSignature = orderSignature
+
         decks = readDecks()
-        for deck in decks { loadContent(deck.slug) }
+        for slug in changed { loadContent(slug) }
+        for slug in removed { dropContent(slug) }
         if let active = activeSlug, !decks.contains(where: { $0.slug == active }) {
             activeSlug = visibleDecks.first?.slug
             persistActive()
         }
     }
 
-    private static func directorySignature() -> Int {
-        let keys: Set<URLResourceKey> = [.contentModificationDateKey]
-        guard let enumerator = FileManager.default.enumerator(
+    private func dropContent(_ slug: String) {
+        todosByDeck[slug] = nil
+        linksByDeck[slug] = nil
+        dailyByDeck[slug] = nil
+        notesByDeck[slug] = nil
+        layoutByDeck[slug] = nil
+    }
+
+    private static func deckSignatures() -> [String: Int] {
+        let fm = FileManager.default
+        guard let dirs = try? fm.contentsOfDirectory(
             at: Storage.root,
-            includingPropertiesForKeys: Array(keys)
-        ) else { return 0 }
-        var hasher = Hasher()
-        for case let url as URL in enumerator {
-            let date = (try? url.resourceValues(forKeys: keys).contentModificationDate) ?? .distantPast
-            hasher.combine(url.path)
-            hasher.combine(date)
+            includingPropertiesForKeys: [.isDirectoryKey]
+        ) else { return [:] }
+
+        var result: [String: Int] = [:]
+        for dir in dirs {
+            guard (try? dir.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true,
+                  let files = try? fm.contentsOfDirectory(
+                      at: dir,
+                      includingPropertiesForKeys: [.contentModificationDateKey]
+                  )
+            else { continue }
+
+            var hasher = Hasher()
+            var isDeck = false
+            for file in files.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
+                if file.pathExtension == "corrupt" { continue }
+                if file.lastPathComponent == "deck.json" { isDeck = true }
+                let date = (try? file.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+                hasher.combine(file.lastPathComponent)
+                hasher.combine(date)
+            }
+            if isDeck { result[dir.lastPathComponent] = hasher.finalize() }
         }
+        return result
+    }
+
+    private static func fileSignature(_ url: URL) -> Int {
+        let date = (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+        var hasher = Hasher()
+        hasher.combine(date)
         return hasher.finalize()
     }
 
