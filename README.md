@@ -83,7 +83,7 @@ cargo run -- daily acme "shipped auth"  # add a dated daily entry
 cargo run -- show acme --json           # machine-readable output
 ```
 
-Also: `link`/`unlink`, `remove` (to-do), `rename`/`archive`/`unarchive`/`delete` (deck), `worklog`, `which`. Every action is exposed as an MCP tool too.
+Also: `link`/`unlink`, `remove`/`edit` (to-do), `reorder`/`rename`/`archive`/`unarchive`/`delete` (deck), `worklog`, `which`. Every action is exposed as an MCP tool too.
 
 ## Worklog
 
