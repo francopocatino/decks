@@ -71,6 +71,21 @@ fn daily_merges_same_day() {
 }
 
 #[test]
+fn set_daily_replaces_the_log() {
+    let dir = temp_dir("setdaily");
+
+    run(&dir, &["new", "Acme"]);
+    run(&dir, &["daily", "acme", "first"]);
+    run(&dir, &["set-daily", "acme", "## 2099-01-01\n\nrewritten"]);
+
+    let body = std::fs::read_to_string(dir.join("acme").join("daily.md")).unwrap();
+    assert!(body.contains("rewritten"), "{body}");
+    assert!(!body.contains("first"), "{body}");
+
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
 fn worklog_collects_today_commits() {
     let dir = temp_dir("worklog");
     let repo = dir.join("repo");
