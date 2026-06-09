@@ -27,20 +27,26 @@ struct SettingsView: View {
     @Environment(DecksStore.self) private var store
 
     var body: some View {
-        NavigationSplitView {
+        HStack(spacing: 0) {
             List(selection: sectionSelection) {
                 ForEach(SettingsSection.allCases) { section in
                     Label(section.title, systemImage: section.symbol)
                         .tag(section)
                 }
             }
-            .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 220)
-        } detail: {
-            switch store.settingsSection {
-            case .general: GeneralSettingsView()
-            case .connectors: ConnectorsView()
-            case .decks: DecksSettingsView()
+            .listStyle(.sidebar)
+            .frame(width: 190)
+
+            Divider()
+
+            Group {
+                switch store.settingsSection {
+                case .general: GeneralSettingsView()
+                case .connectors: ConnectorsView()
+                case .decks: DecksSettingsView()
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(width: 760, height: 520)
     }
@@ -68,7 +74,6 @@ struct GeneralSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .navigationTitle("General")
     }
 }
 
@@ -100,7 +105,6 @@ struct ConnectorsView: View {
             }
         }
         .formStyle(.grouped)
-        .navigationTitle("Connectors")
     }
 
     private func add() {
@@ -153,7 +157,6 @@ struct DecksSettingsView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .navigationTitle("Decks")
         .onAppear {
             if store.settingsDeck == nil {
                 store.settingsDeck = store.topLevelVisibleDecks().first?.slug
