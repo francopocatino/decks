@@ -1,5 +1,10 @@
 import Foundation
 
+enum SettingsTarget: Hashable {
+    case general
+    case deck(String)
+}
+
 enum DeckSection: String, Codable, CaseIterable, Identifiable {
     case daily, todos, notes, links
 

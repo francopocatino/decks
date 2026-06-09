@@ -2,6 +2,70 @@ import AppKit
 import SwiftUI
 
 struct SettingsView: View {
+    @Environment(DecksStore.self) private var store
+
+    var body: some View {
+        NavigationSplitView {
+            List(selection: selection) {
+                Section {
+                    Label("General", systemImage: "gearshape")
+                        .tag(SettingsTarget.general)
+                }
+                Section("Decks") {
+                    ForEach(store.topLevelVisibleDecks()) { deck in
+                        let children = store.visibleChildren(of: deck.slug)
+                        if children.isEmpty {
+                            deckRow(deck)
+                        } else {
+                            DisclosureGroup {
+                                ForEach(children) { child in deckRow(child) }
+                            } label: {
+                                deckRow(deck)
+                            }
+                        }
+                    }
+                }
+                if !store.archivedDecks.isEmpty {
+                    Section("Archived") {
+                        ForEach(store.archivedDecks) { deck in deckRow(deck) }
+                    }
+                }
+            }
+            .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 260)
+        } detail: {
+            detail
+        }
+        .frame(width: 720, height: 500)
+    }
+
+    private func deckRow(_ deck: Deck) -> some View {
+        Label(deck.name, systemImage: deck.isArchived ? "archivebox" : "rectangle.stack")
+            .tag(SettingsTarget.deck(deck.slug))
+    }
+
+    @ViewBuilder
+    private var detail: some View {
+        switch store.settingsSelection {
+        case .general:
+            GeneralSettingsView()
+        case let .deck(slug):
+            if let deck = store.deck(slug) {
+                DeckSettingsForm(deck: deck).id(slug)
+            } else {
+                ContentUnavailableView("Select a deck", systemImage: "rectangle.stack")
+            }
+        }
+    }
+
+    private var selection: Binding<SettingsTarget?> {
+        Binding(
+            get: { store.settingsSelection },
+            set: { if let value = $0 { store.settingsSelection = value } }
+        )
+    }
+}
+
+struct GeneralSettingsView: View {
     @Environment(IdentityStore.self) private var identity
     @State private var newAccount = ""
 
@@ -25,7 +89,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 520, height: 440)
+        .navigationTitle("General")
     }
 
     private func add() {

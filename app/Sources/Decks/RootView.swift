@@ -6,13 +6,13 @@ struct RootView: View {
     @Environment(UpdateChecker.self) private var updates
     @Environment(IdentityStore.self) private var identity
     @Environment(ChatStore.self) private var chat
+    @Environment(\.openSettings) private var openSettings
     @State private var showingNewDeck = false
     @State private var newDeckName = ""
     @State private var newDeckParent: String?
     @State private var renaming: Deck?
     @State private var renameText = ""
     @State private var pendingDelete: Deck?
-    @State private var settingsDeck: Deck?
 
     var body: some View {
         NavigationSplitView {
@@ -54,10 +54,14 @@ struct RootView: View {
                     .buttonStyle(.plain)
                     .keyboardShortcut("n")
                     Spacer()
-                    SettingsLink {
+                    Button {
+                        store.settingsSelection = .general
+                        openSettings()
+                    } label: {
                         Image(systemName: "gearshape")
                     }
                     .buttonStyle(.plain)
+                    .help("Settings")
                 }
                 .padding(12)
             }
@@ -97,10 +101,6 @@ struct RootView: View {
                 renaming = nil
             }
         }
-        .sheet(item: $settingsDeck) { deck in
-            DeckSettingsView(deck: deck) { settingsDeck = nil }
-                .environment(identity)
-        }
         .confirmationDialog("Delete this deck?", isPresented: deleteDialog, presenting: pendingDelete) { deck in
             Button("Delete \(deck.name)", role: .destructive) {
                 store.deleteDeck(deck.slug)
@@ -129,7 +129,10 @@ struct RootView: View {
             .tag(deck.slug)
             .contextMenu {
                 Button("Rename") { startRename(deck) }
-                Button("Settings…") { settingsDeck = deck }
+                Button("Settings…") {
+                    store.settingsSelection = .deck(deck.slug)
+                    openSettings()
+                }
                 if deck.parent == nil, !deck.isArchived {
                     Button("Add sub-deck") { startNewDeck(parent: deck.slug) }
                 }
