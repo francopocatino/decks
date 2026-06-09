@@ -3,7 +3,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 app="build/Decks.app"
-version="${DECKS_VERSION:-0.1.0}"
+default_version="$(grep -m1 '^version *= *' cli/Cargo.toml | cut -d'"' -f2)"
+version="${DECKS_VERSION:-${default_version:-0.0.0}}"
 
 swift build -c release --package-path app
 rm -rf "$app"
