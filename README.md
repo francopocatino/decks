@@ -37,10 +37,11 @@ That builds a native `Decks.app`, installs it, and launches it. Right-click the 
 
 - Native macOS app (SwiftUI), no Electron.
 - One deck per project or context, with rename / archive / delete, drag-to-reorder, and a sidebar that shows open to-do counts.
-- Sub-decks: nest projects under a parent (one level). A sub-deck inherits the parent's AI account, commit email, git provider and instructions when its own are empty, and sees the parent's links — to-dos and dailies stay per sub-deck.
+- Sub-decks: nest projects under a parent (one level). A sub-deck inherits the parent's connector, commit email, git provider and instructions when its own are empty, and sees the parent's links — to-dos and dailies stay per sub-deck.
 - Split the deck into panes (two columns, or a stacked pair beside a third) so you can keep, say, the daily and notes side by side with your to-dos.
 - Live sync: edits from the CLI or an agent show up in the open app within a second or two.
-- Per-deck identity: git provider and commit email, project folders, which AI account the deck uses, and AI instructions (language, daily format, tone). API keys live in the macOS Keychain.
+- Per-deck identity: git provider and commit email, project folders, which connector the deck uses, and AI instructions (language, daily format, tone). Secrets live in the macOS Keychain.
+- Connectors: Claude or OpenAI power Ask; GitHub/GitLab tokens for the worklog. Configured in Settings, separated into AI and Git, secrets in the Keychain.
 - Ask this deck: an in-app chat scoped to one deck, with persistent memory.
 - A Rust CLI and an MCP server so Claude can read and write your decks.
 - Worklog: turn a day's git commits into a daily entry.
@@ -65,7 +66,7 @@ Then ask Claude — in Claude Code or Claude Desktop — to operate any deck by 
 
 ## Ask this deck (in-app AI)
 
-Each deck has an Ask panel (the sparkles button) — a chat scoped to that deck. It answers only from that deck's own to-dos, daily, notes and links, keeps a persistent history, and uses that deck's AI account. A deck's chat never sees another deck's content or account. In-app chat needs an API-key account (set in the app settings, Cmd+,); login-account decks use Claude Code through the MCP server instead.
+Each deck has an Ask panel (the sparkles button) — a chat scoped to that deck. It answers only from that deck's own to-dos, daily, notes and links, keeps a persistent history, and uses that deck's connector. A deck's chat never sees another deck's content or connector. In-app chat needs an API-key connector — Claude or OpenAI (set in Settings, Cmd+,); Claude login-mode decks use Claude Code through the MCP server instead.
 
 Each deck also carries free-form AI instructions (in deck settings) — language, daily format, tone. Ask prepends them to its system prompt, and Claude reads them from `show_deck` over the MCP server, so a daily drafted in one deck comes out in English bullets while another comes out in Spanish prose, per deck.
 
