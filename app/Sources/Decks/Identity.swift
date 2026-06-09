@@ -46,11 +46,13 @@ struct DeckProfile: Codable, Hashable {
     var gitProvider: GitProvider
     var authorEmail: String
     var folders: [String]
+    var instructions: String
 
     init() {
         accountID = nil
         gitProvider = .github
         authorEmail = ""
         folders = []
+        instructions = ""
     }
 }

@@ -19,6 +19,18 @@ struct DeckSettingsView: View {
                         }
                     }
                 }
+                Section {
+                    TextField(
+                        "e.g. Write the daily in English as Yesterday / Today / Blockers bullets.",
+                        text: $profile.instructions,
+                        axis: .vertical
+                    )
+                    .lineLimit(3 ... 8)
+                } header: {
+                    Text("AI instructions")
+                } footer: {
+                    Text("How AI should write for this deck — language, daily format, tone. Used by Ask, and by Claude over the MCP server (it reads these from show_deck).")
+                }
                 Section("Git") {
                     Picker("Provider", selection: $profile.gitProvider) {
                         ForEach(GitProvider.allCases) { provider in
@@ -51,7 +63,7 @@ struct DeckSettingsView: View {
             }
             .padding(12)
         }
-        .frame(width: 480, height: 470)
+        .frame(width: 480, height: 560)
         .onAppear { profile = identity.profile(deck.slug) }
     }
 
