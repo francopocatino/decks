@@ -1,6 +1,6 @@
 import Foundation
 
-enum DeckSection: String, CaseIterable, Identifiable {
+enum DeckSection: String, Codable, CaseIterable, Identifiable {
     case daily, todos, notes, links
 
     var id: String { rawValue }
@@ -21,6 +21,51 @@ enum DeckSection: String, CaseIterable, Identifiable {
         case .notes: "note.text"
         case .links: "link"
         }
+    }
+}
+
+enum LayoutMode: String, Codable, CaseIterable, Identifiable {
+    case single, columns, stack
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .single: "Single"
+        case .columns: "Two columns"
+        case .stack: "Stack + side"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .single: "rectangle"
+        case .columns: "rectangle.split.2x1"
+        case .stack: "rectangle.split.3x1"
+        }
+    }
+
+    var paneCount: Int {
+        switch self {
+        case .single: 1
+        case .columns: 2
+        case .stack: 3
+        }
+    }
+}
+
+struct DeckLayout: Codable, Hashable {
+    var mode: LayoutMode
+    var slots: [DeckSection]
+
+    init() {
+        mode = .single
+        slots = [.daily, .todos, .notes]
+    }
+
+    mutating func normalize() {
+        let defaults: [DeckSection] = [.daily, .todos, .notes]
+        while slots.count < defaults.count { slots.append(defaults[slots.count]) }
     }
 }
 
