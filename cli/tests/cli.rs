@@ -83,3 +83,38 @@ fn worklog_collects_today_commits() {
 
     std::fs::remove_dir_all(&dir).ok();
 }
+
+#[test]
+fn link_and_deck_management() {
+    let dir = temp_dir("manage");
+
+    run(&dir, &["new", "Acme"]);
+
+    run(&dir, &["link", "acme", "https://github.com/x", "Repo"]);
+    let show = run(&dir, &["show", "acme", "--json"]);
+    assert!(show.contains("https://github.com/x"), "{show}");
+    assert!(show.contains("\"label\": \"Repo\""), "{show}");
+
+    run(&dir, &["unlink", "acme", "0"]);
+    let show2 = run(&dir, &["show", "acme", "--json"]);
+    assert!(!show2.contains("https://github.com/x"), "{show2}");
+
+    run(&dir, &["add", "acme", "todo one"]);
+    run(&dir, &["remove", "acme", "0"]);
+    let show3 = run(&dir, &["show", "acme", "--json"]);
+    assert!(!show3.contains("todo one"), "{show3}");
+
+    run(&dir, &["rename", "acme", "Acme", "Renamed"]);
+    let list = run(&dir, &["list", "--json"]);
+    assert!(list.contains("Acme Renamed"), "{list}");
+
+    run(&dir, &["archive", "acme"]);
+    let deck = std::fs::read_to_string(dir.join("acme").join("deck.json")).unwrap();
+    assert!(deck.contains("\"archived\": true"), "{deck}");
+    run(&dir, &["unarchive", "acme"]);
+
+    run(&dir, &["delete", "acme"]);
+    assert!(!dir.join("acme").exists());
+
+    std::fs::remove_dir_all(&dir).ok();
+}
