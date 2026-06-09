@@ -40,7 +40,15 @@ enum Storage {
 
     static func readJSON<T: Decodable>(_ type: T.Type, at url: URL) -> T? {
         guard let data = try? Data(contentsOf: url) else { return nil }
-        return try? decoder.decode(T.self, from: data)
+        if let value = try? decoder.decode(T.self, from: data) { return value }
+        if !data.isEmpty { backupCorrupt(url) }
+        return nil
+    }
+
+    private static func backupCorrupt(_ url: URL) {
+        let backup = url.appendingPathExtension("corrupt")
+        guard !FileManager.default.fileExists(atPath: backup.path) else { return }
+        try? FileManager.default.copyItem(at: url, to: backup)
     }
 
     static func writeJSON(_ value: some Encodable, to url: URL) {
