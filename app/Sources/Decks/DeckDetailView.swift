@@ -15,7 +15,9 @@ struct DeckDetailView: View {
                     ToolbarItem(placement: .principal) {
                         Picker("Section", selection: slotBinding(0)) {
                             ForEach(DeckSection.allCases) { section in
-                                Text(section.title).tag(section)
+                                Image(systemName: section.symbol)
+                                    .help(section.title)
+                                    .tag(section)
                             }
                         }
                         .pickerStyle(.segmented)

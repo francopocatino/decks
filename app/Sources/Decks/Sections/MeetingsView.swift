@@ -24,7 +24,14 @@ struct MeetingsView: View {
         .onReceive(tick) { now = $0 }
     }
 
-    private var sources: [String] { identity.profile(slug).calendarSources ?? [] }
+    private var sources: [String] {
+        let own = identity.profile(slug).calendarSources ?? []
+        if !own.isEmpty { return own }
+        if let parent = store.deck(slug)?.parent {
+            return identity.profile(parent).calendarSources ?? []
+        }
+        return []
+    }
 
     private var header: some View {
         HStack {

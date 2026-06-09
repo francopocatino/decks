@@ -74,7 +74,7 @@ struct DeckSettingsForm: View {
             } header: {
                 Text("Parent")
             } footer: {
-                Text("A sub-deck inherits its parent's AI and Git connectors, commit email, git provider and instructions when its own are empty, and sees the parent's links.")
+                Text("A sub-deck inherits its parent's AI and Git connectors, commit email, git provider, instructions and calendar when its own are empty, and sees the parent's links.")
             }
             Section {
                 Picker("Provider", selection: $profile.gitProvider) {
