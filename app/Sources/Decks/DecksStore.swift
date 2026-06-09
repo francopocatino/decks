@@ -113,6 +113,16 @@ final class DecksStore {
         saveTodos(slug)
     }
 
+    func editTodo(_ id: UUID, text: String, in slug: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, var list = todosByDeck[slug],
+              let index = list.firstIndex(where: { $0.id == id }), list[index].text != trimmed
+        else { return }
+        list[index].text = trimmed
+        todosByDeck[slug] = list
+        saveTodos(slug)
+    }
+
     func toggleTodo(_ id: UUID, in slug: String) {
         guard var list = todosByDeck[slug], let index = list.firstIndex(where: { $0.id == id }) else { return }
         list[index].done.toggle()
