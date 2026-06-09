@@ -125,6 +125,14 @@ fn tools() -> Value {
             )
         },
         {
+            "name": "set_daily",
+            "description": "Replace a deck's entire daily log with new markdown. Read it first with show_deck and keep what should stay — this overwrites the whole log. Use add_daily_entry to just append.",
+            "inputSchema": schema(
+                json!({ "slug": text("Deck slug"), "text": text("Full daily log in markdown") }),
+                json!(["slug", "text"]),
+            )
+        },
+        {
             "name": "add_link",
             "description": "Add a link to a deck.",
             "inputSchema": schema(
@@ -262,6 +270,11 @@ fn call_tool(message: &Value, scope: Option<&str>) -> Result<String, String> {
             let slug = resolve(arg("slug"))?;
             let text = arg("text");
             run(&["daily", slug.as_str(), text.as_str()]).map(|_| "Daily entry added.".to_string())
+        }
+        "set_daily" => {
+            let slug = resolve(arg("slug"))?;
+            let text = arg("text");
+            run(&["set-daily", slug.as_str(), text.as_str()]).map(|_| "Daily updated.".to_string())
         }
         "add_link" => {
             let slug = resolve(arg("slug"))?;
