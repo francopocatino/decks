@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Observation
 
@@ -13,11 +14,19 @@ final class DecksStore {
     private var notesByDeck: [String: String] = [:]
     private var layoutByDeck: [String: DeckLayout] = [:]
     private var saveTasks: [String: Task<Void, Never>] = [:]
+    private var pendingWrites: [String: @MainActor () -> Void] = [:]
     private var lastSignature = 0
 
     init() {
         Storage.ensureDirectory(Storage.root)
         load()
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.willTerminateNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.flushPendingSaves() }
+        }
     }
 
     var activeDeck: Deck? {
@@ -212,6 +221,18 @@ final class DecksStore {
         saveLinks(slug)
     }
 
+    func editLink(_ id: UUID, label: String, url: String, in slug: String) {
+        let cleanURL = url.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanURL.isEmpty, var list = linksByDeck[slug],
+              let index = list.firstIndex(where: { $0.id == id })
+        else { return }
+        let cleanLabel = label.trimmingCharacters(in: .whitespacesAndNewlines)
+        list[index].label = cleanLabel.isEmpty ? cleanURL : cleanLabel
+        list[index].url = cleanURL
+        linksByDeck[slug] = list
+        saveLinks(slug)
+    }
+
     func deleteLink(_ id: UUID, in slug: String) {
         linksByDeck[slug]?.removeAll { $0.id == id }
         saveLinks(slug)
@@ -340,12 +361,25 @@ final class DecksStore {
     }
 
     private func scheduleSave(_ key: String, write: @escaping @MainActor () -> Void) {
+        pendingWrites[key] = write
         saveTasks[key]?.cancel()
         saveTasks[key] = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .milliseconds(400))
             if Task.isCancelled { return }
-            write()
-            self?.saveTasks[key] = nil
+            self?.flush(key)
+        }
+    }
+
+    private func flush(_ key: String) {
+        pendingWrites[key]?()
+        pendingWrites[key] = nil
+        saveTasks[key] = nil
+    }
+
+    func flushPendingSaves() {
+        for key in Array(pendingWrites.keys) {
+            saveTasks[key]?.cancel()
+            flush(key)
         }
     }
 

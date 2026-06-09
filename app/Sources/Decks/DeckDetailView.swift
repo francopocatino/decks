@@ -12,15 +12,28 @@ struct DeckDetailView: View {
             .navigationTitle(deck.name)
             .background { sectionShortcuts }
             .toolbar {
-                ToolbarItem(placement: .principal) {
-                    Picker("Layout", selection: layoutModeBinding) {
-                        ForEach(LayoutMode.allCases) { mode in
-                            Image(systemName: mode.symbol)
-                                .help(mode.title)
-                                .tag(mode)
+                if layout.mode == .single {
+                    ToolbarItem(placement: .principal) {
+                        Picker("Section", selection: slotBinding(0)) {
+                            ForEach(DeckSection.allCases) { section in
+                                Text(section.title).tag(section)
+                            }
                         }
+                        .pickerStyle(.segmented)
                     }
-                    .pickerStyle(.segmented)
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    Menu {
+                        Picker("Layout", selection: layoutModeBinding) {
+                            ForEach(LayoutMode.allCases) { mode in
+                                Label(mode.title, systemImage: mode.symbol).tag(mode)
+                            }
+                        }
+                        .pickerStyle(.inline)
+                    } label: {
+                        Image(systemName: layout.mode.symbol)
+                    }
+                    .help("Pane layout")
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Button { showingAsk = true } label: {
@@ -64,7 +77,7 @@ struct DeckDetailView: View {
     }
 
     private func pane(_ index: Int) -> some View {
-        PaneView(slug: deck.slug, section: slotBinding(index))
+        PaneView(slug: deck.slug, section: slotBinding(index), showsHeader: layout.mode != .single)
     }
 
     private func slotBinding(_ index: Int) -> Binding<DeckSection> {
@@ -99,27 +112,30 @@ struct DeckDetailView: View {
 private struct PaneView: View {
     let slug: String
     @Binding var section: DeckSection
+    var showsHeader: Bool
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Menu {
-                    ForEach(DeckSection.allCases) { option in
-                        Button { section = option } label: {
-                            Label(option.title, systemImage: option.symbol)
+            if showsHeader {
+                HStack {
+                    Menu {
+                        ForEach(DeckSection.allCases) { option in
+                            Button { section = option } label: {
+                                Label(option.title, systemImage: option.symbol)
+                            }
                         }
+                    } label: {
+                        Label(section.title, systemImage: section.symbol)
+                            .font(.headline)
                     }
-                } label: {
-                    Label(section.title, systemImage: section.symbol)
-                        .font(.headline)
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+                    Spacer()
                 }
-                .menuStyle(.borderlessButton)
-                .fixedSize()
-                Spacer()
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                Divider()
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            Divider()
             content
         }
         .frame(minWidth: 240, minHeight: 180)
