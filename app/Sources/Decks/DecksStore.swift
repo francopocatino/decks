@@ -397,9 +397,7 @@ final class DecksStore {
         if saveTasks["notes-\(slug)"] == nil {
             notesByDeck[slug] = Storage.readString(directory.appendingPathComponent("notes.md"))
         }
-        var layout = Storage.readJSON(DeckLayout.self, at: directory.appendingPathComponent("layout.json")) ?? DeckLayout()
-        layout.normalize()
-        layoutByDeck[slug] = layout
+        layoutByDeck[slug] = Storage.readJSON(DeckLayout.self, at: directory.appendingPathComponent("layout.json")) ?? DeckLayout()
     }
 
     // MARK: Helpers

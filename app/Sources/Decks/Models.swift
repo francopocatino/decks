@@ -48,48 +48,22 @@ enum DeckSection: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-enum LayoutMode: String, Codable, CaseIterable, Identifiable {
-    case single, columns, stack
+enum SplitAxis: String, Codable, Hashable {
+    case horizontal, vertical
+}
 
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .single: "Single"
-        case .columns: "Two columns"
-        case .stack: "Stack + side"
-        }
-    }
-
-    var symbol: String {
-        switch self {
-        case .single: "rectangle"
-        case .columns: "rectangle.split.2x1"
-        case .stack: "rectangle.split.3x1"
-        }
-    }
-
-    var paneCount: Int {
-        switch self {
-        case .single: 1
-        case .columns: 2
-        case .stack: 3
-        }
-    }
+// A recursive pane tree: a leaf shows one section; a split holds two
+// children with an axis and the first child's size fraction (0...1).
+indirect enum PaneNode: Codable, Hashable {
+    case leaf(DeckSection)
+    case split(SplitAxis, Double, PaneNode, PaneNode)
 }
 
 struct DeckLayout: Codable, Hashable {
-    var mode: LayoutMode
-    var slots: [DeckSection]
+    var root: PaneNode
 
     init() {
-        mode = .single
-        slots = [.daily, .todos, .notes]
-    }
-
-    mutating func normalize() {
-        let defaults: [DeckSection] = [.daily, .todos, .notes]
-        while slots.count < defaults.count { slots.append(defaults[slots.count]) }
+        root = .leaf(.daily)
     }
 }
 
