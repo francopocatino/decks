@@ -3,8 +3,11 @@ import SwiftUI
 
 struct DailyView: View {
     @Environment(DecksStore.self) private var store
+    @Environment(IdentityStore.self) private var identity
     let slug: String
     @State private var preview = false
+    @State private var working = false
+    @State private var aiError: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -21,6 +24,11 @@ struct DailyView: View {
                     .padding(16)
             }
         }
+        .alert("Couldn't draft", isPresented: aiErrorBinding) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(aiError ?? "")
+        }
     }
 
     private var header: some View {
@@ -31,6 +39,19 @@ struct DailyView: View {
                 Label("Today", systemImage: "calendar.badge.plus")
             }
             .buttonStyle(.borderless)
+
+            if DeckAssistant.connector(for: slug, identity: identity) != nil {
+                Button(action: draftToday) {
+                    if working {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Label("Draft", systemImage: "sparkles")
+                    }
+                }
+                .buttonStyle(.borderless)
+                .disabled(working)
+                .help("Draft today's entry with AI")
+            }
 
             Spacer()
 
@@ -59,6 +80,37 @@ struct DailyView: View {
             get: { store.daily(slug) },
             set: { store.setDaily($0, for: slug) }
         )
+    }
+
+    private var aiErrorBinding: Binding<Bool> {
+        Binding(get: { aiError != nil }, set: { if !$0 { aiError = nil } })
+    }
+
+    private func draftToday() {
+        let todos = store.todos(slug)
+            .filter { !$0.done }
+            .map { "- \($0.text)" }
+            .joined(separator: "\n")
+        let notes = store.notes(slug)
+        let context = """
+        Open to-dos:
+        \(todos.isEmpty ? "(none)" : todos)
+
+        Notes:
+        \(notes.isEmpty ? "(none)" : notes)
+        """
+        let system = "Draft today's standup daily entry for this workspace as concise markdown bullets (in progress, next, blockers). Output only the entry, no preamble."
+        working = true
+        aiError = nil
+        Task {
+            do {
+                let draft = try await DeckAssistant.run(system: system, user: context, slug: slug, identity: identity)
+                store.addDailyLine(draft, to: slug)
+            } catch {
+                aiError = error.localizedDescription
+            }
+            working = false
+        }
     }
 
     private func copyToday() {

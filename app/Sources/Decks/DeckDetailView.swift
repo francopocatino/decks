@@ -4,7 +4,6 @@ struct DeckDetailView: View {
     @Environment(DecksStore.self) private var store
     let deck: Deck
     @State private var layout = DeckLayout()
-    @State private var showingAsk = false
 
     var body: some View {
         panes
@@ -36,14 +35,6 @@ struct DeckDetailView: View {
                     }
                     .help("Pane layout")
                 }
-                ToolbarItem(placement: .primaryAction) {
-                    Button { showingAsk = true } label: {
-                        Label("Ask", systemImage: "sparkles")
-                    }
-                }
-            }
-            .sheet(isPresented: $showingAsk) {
-                AskView(deck: deck) { showingAsk = false }
             }
             .onAppear { layout = store.layout(deck.slug) }
     }

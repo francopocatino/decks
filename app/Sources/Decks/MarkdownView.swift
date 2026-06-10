@@ -130,21 +130,3 @@ struct MarkdownView: View {
     }
 }
 
-struct MarkdownToggle: View {
-    @Binding var preview: Bool
-
-    var body: some View {
-        HStack {
-            Spacer()
-            Picker("", selection: $preview) {
-                Image(systemName: "pencil").tag(false)
-                Image(systemName: "eye").tag(true)
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .fixedSize()
-        }
-        .padding(.horizontal, 16)
-        .padding(.top, 8)
-    }
-}
