@@ -4,6 +4,8 @@ import SwiftUI
 struct PaneTreeView: View {
     let slug: String
     let node: PaneNode
+    let used: Set<DeckSection>
+    let canSplit: Bool
     var update: (PaneNode) -> Void
     var onClose: (() -> Void)?
 
@@ -13,8 +15,12 @@ struct PaneTreeView: View {
             LeafPane(
                 slug: slug,
                 section: section,
+                canSplit: canSplit,
                 onSection: { update(.leaf($0)) },
-                onSplit: { axis in update(.split(axis, 0.5, .leaf(section), .leaf(section))) },
+                onSplit: { axis in
+                    let next = DeckSection.allCases.first { !used.contains($0) } ?? section
+                    update(.split(axis, 0.5, .leaf(section), .leaf(next)))
+                },
                 onClose: onClose
             )
         case let .split(axis, fraction, first, second):
@@ -24,6 +30,8 @@ struct PaneTreeView: View {
                 PaneTreeView(
                     slug: slug,
                     node: first,
+                    used: used,
+                    canSplit: canSplit,
                     update: { update(.split(axis, fraction, $0, second)) },
                     onClose: { update(second) }
                 )
@@ -31,6 +39,8 @@ struct PaneTreeView: View {
                 PaneTreeView(
                     slug: slug,
                     node: second,
+                    used: used,
+                    canSplit: canSplit,
                     update: { update(.split(axis, fraction, first, $0)) },
                     onClose: { update(first) }
                 )
@@ -42,6 +52,7 @@ struct PaneTreeView: View {
 private struct LeafPane: View {
     let slug: String
     let section: DeckSection
+    let canSplit: Bool
     var onSection: (DeckSection) -> Void
     var onSplit: (SplitAxis) -> Void
     var onClose: (() -> Void)?
@@ -72,17 +83,19 @@ private struct LeafPane: View {
 
             Spacer()
 
-            Button { onSplit(.horizontal) } label: {
-                Image(systemName: "rectangle.split.2x1")
-            }
-            .buttonStyle(.borderless)
-            .help("Split right")
+            if canSplit {
+                Button { onSplit(.horizontal) } label: {
+                    Image(systemName: "rectangle.split.2x1")
+                }
+                .buttonStyle(.borderless)
+                .help("Split right")
 
-            Button { onSplit(.vertical) } label: {
-                Image(systemName: "rectangle.split.1x2")
+                Button { onSplit(.vertical) } label: {
+                    Image(systemName: "rectangle.split.1x2")
+                }
+                .buttonStyle(.borderless)
+                .help("Split down")
             }
-            .buttonStyle(.borderless)
-            .help("Split down")
 
             if let onClose {
                 Button(action: onClose) {

@@ -5,8 +5,21 @@ struct DeckDetailView: View {
     let deck: Deck
     @State private var layout = DeckLayout()
 
+    private func leaves(_ node: PaneNode) -> [DeckSection] {
+        switch node {
+        case let .leaf(section): [section]
+        case let .split(_, _, first, second): leaves(first) + leaves(second)
+        }
+    }
+
     var body: some View {
-        PaneTreeView(slug: deck.slug, node: layout.root) { newRoot in
+        let sections = leaves(layout.root)
+        return PaneTreeView(
+            slug: deck.slug,
+            node: layout.root,
+            used: Set(sections),
+            canSplit: sections.count < 4
+        ) { newRoot in
             layout.root = newRoot
             store.setLayout(layout, for: deck.slug)
         }
