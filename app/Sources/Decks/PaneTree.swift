@@ -132,6 +132,7 @@ private struct SplitContainer<First: View, Second: View>: View {
 
     private let handle: CGFloat = 7
     private let minPane: CGFloat = 120
+    private let space = "split"
 
     var body: some View {
         GeometryReader { geometry in
@@ -139,19 +140,24 @@ private struct SplitContainer<First: View, Second: View>: View {
             let value = dragFraction ?? fraction
             let firstSize = max(minPane, min(total - minPane - handle, total * value))
             let secondSize = max(0, total - firstSize - handle)
+            stack(firstSize: firstSize, secondSize: secondSize, total: total)
+                .coordinateSpace(.named(space))
+        }
+    }
 
-            if axis == .horizontal {
-                HStack(spacing: 0) {
-                    first.frame(width: firstSize)
-                    divider(total: total)
-                    second.frame(width: secondSize)
-                }
-            } else {
-                VStack(spacing: 0) {
-                    first.frame(height: firstSize)
-                    divider(total: total)
-                    second.frame(height: secondSize)
-                }
+    @ViewBuilder
+    private func stack(firstSize: CGFloat, secondSize: CGFloat, total: CGFloat) -> some View {
+        if axis == .horizontal {
+            HStack(spacing: 0) {
+                first.frame(width: firstSize)
+                divider(total: total)
+                second.frame(width: secondSize)
+            }
+        } else {
+            VStack(spacing: 0) {
+                first.frame(height: firstSize)
+                divider(total: total)
+                second.frame(height: secondSize)
             }
         }
     }
@@ -173,10 +179,10 @@ private struct SplitContainer<First: View, Second: View>: View {
                 }
             }
             .gesture(
-                DragGesture()
+                DragGesture(coordinateSpace: .named(space))
                     .onChanged { value in
-                        let delta = axis == .horizontal ? value.translation.width : value.translation.height
-                        dragFraction = min(0.85, max(0.15, (total * fraction + delta) / total))
+                        let position = axis == .horizontal ? value.location.x : value.location.y
+                        dragFraction = min(0.85, max(0.15, position / total))
                     }
                     .onEnded { _ in
                         if let dragFraction { onFraction(dragFraction) }
