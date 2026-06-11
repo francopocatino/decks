@@ -89,6 +89,34 @@ enum CalendarService {
             }
     }
 
+    @discardableResult
+    static func createTimeBlock(
+        title: String,
+        start: Date,
+        duration: TimeInterval,
+        sources: [String],
+        note: String
+    ) async -> Bool {
+        guard await requestAccess() else { return false }
+        let store = EKEventStore()
+        let scoped = store.calendars(for: .event)
+            .filter { sources.contains($0.source?.sourceIdentifier ?? "") && $0.allowsContentModifications }
+        guard let calendar = scoped.first ?? store.defaultCalendarForNewEvents else { return false }
+
+        let event = EKEvent(eventStore: store)
+        event.calendar = calendar
+        event.title = title
+        event.startDate = start
+        event.endDate = start.addingTimeInterval(duration)
+        event.notes = note
+        do {
+            try store.save(event, span: .thisEvent)
+            return true
+        } catch {
+            return false
+        }
+    }
+
     private static func meetLink(_ event: EKEvent) -> URL? {
         guard let raw = rawMeetLink(event) else { return nil }
         if raw.contains("meet.google.com"),
