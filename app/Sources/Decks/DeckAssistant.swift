@@ -10,15 +10,20 @@ enum DeckAssistant {
         return account
     }
 
+    static func hasBackend(for slug: String, identity: IdentityStore) -> Bool {
+        connector(for: slug, identity: identity) != nil || AppleIntelligence.isAvailable
+    }
+
     static func run(system: String, user: String, slug: String, identity: IdentityStore) async throws -> String {
+        let preamble = instructions(for: slug, identity: identity)
+        let fullSystem = preamble.isEmpty ? system : "\(preamble)\n\n\(system)"
+
         guard let account = connector(for: slug, identity: identity) else {
-            throw AssistantError.noConnector
+            guard AppleIntelligence.isAvailable else { throw AssistantError.noConnector }
+            return try await AppleIntelligence.reply(system: fullSystem, user: user)
         }
         let key = identity.apiKey(for: account.id)
         guard !key.isEmpty else { throw AssistantError.noKey }
-
-        let preamble = instructions(for: slug, identity: identity)
-        let fullSystem = preamble.isEmpty ? system : "\(preamble)\n\n\(system)"
         let history = [ChatMessage(role: "user", text: user)]
 
         if account.kind == .openai {

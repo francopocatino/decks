@@ -32,7 +32,7 @@ struct NotesView: View {
 
     private var header: some View {
         HStack(spacing: 8) {
-            if DeckAssistant.connector(for: slug, identity: identity) != nil, !store.notes(slug).isEmpty {
+            if DeckAssistant.hasBackend(for: slug, identity: identity), !store.notes(slug).isEmpty {
                 Button(action: polish) {
                     if working {
                         ProgressView().controlSize(.small)

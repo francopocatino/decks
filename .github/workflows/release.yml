@@ -13,6 +13,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Select newest Xcode
+        run: |
+          latest="$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)"
+          if [ -n "$latest" ]; then sudo xcode-select -s "$latest"; fi
+          swift --version
+
       - name: Build app bundle
         run: DECKS_VERSION="${GITHUB_REF_NAME#v}" ./scripts/bundle.sh
 
