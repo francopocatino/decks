@@ -101,6 +101,10 @@ It runs `deck=$(decks which "$CLAUDE_PROJECT_DIR"); [ -n "$deck" ] && decks work
 
 Everything is plain files under `~/.decks` (override with `DECKS_DIR`): JSON for structured data, markdown for free text. The on-disk format is the only contract between the app and the CLI — see [docs/format.md](docs/format.md).
 
+## Automation
+
+Shortcuts (including Focus automations) and SSH from the iPhone or Watch can drive Decks through the CLI — recipes in [docs/automation.md](docs/automation.md).
+
 ## Development
 
 ```

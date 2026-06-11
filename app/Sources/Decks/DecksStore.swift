@@ -19,6 +19,7 @@ final class DecksStore {
     private var pendingWrites: [String: @MainActor () -> Void] = [:]
     private var lastDeckSignatures: [String: Int] = [:]
     private var lastOrderSignature = 0
+    private var lastStateSignature = 0
     @ObservationIgnored var onTodosChanged: ((String) -> Void)?
 
     init() {
@@ -326,9 +327,11 @@ final class DecksStore {
         activeSlug = state?.active ?? decks.first?.slug
         lastDeckSignatures = Self.deckSignatures()
         lastOrderSignature = Self.fileSignature(orderURL)
+        lastStateSignature = Self.fileSignature(stateURL)
     }
 
     func reloadIfChanged() {
+        adoptExternalState()
         let signatures = Self.deckSignatures()
         let orderSignature = Self.fileSignature(orderURL)
         guard signatures != lastDeckSignatures || orderSignature != lastOrderSignature else { return }
@@ -345,6 +348,19 @@ final class DecksStore {
             activeSlug = visibleDecks.first?.slug
             persistActive()
         }
+    }
+
+    // The CLI's `decks open` (e.g. from a Focus automation) rewrites
+    // state.json; adopt the new active deck when that happens.
+    private func adoptExternalState() {
+        let signature = Self.fileSignature(stateURL)
+        guard signature != lastStateSignature else { return }
+        lastStateSignature = signature
+        guard let active = Storage.readJSON(State.self, at: stateURL)?.active,
+              active != activeSlug,
+              decks.contains(where: { $0.slug == active })
+        else { return }
+        activeSlug = active
     }
 
     private func dropContent(_ slug: String) {
