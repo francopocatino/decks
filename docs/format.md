@@ -37,7 +37,8 @@ them without extra work.
 ]
 ```
 
-`doneAt` is written only when the item is done.
+`doneAt` is written only when the item is done. `due` is written only when the
+item has a due date.
 
 `reminderID` is written only on decks that sync with Apple Reminders; it links
 the to-do to its reminder. Preserve it when rewriting the file. The app keeps

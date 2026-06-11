@@ -115,6 +115,33 @@ final class RemindersMergeTests: XCTestCase {
         XCTAssertNil(plan.todos[0].reminderID)
     }
 
+    func testRemoteDueChangePropagatesToTodo() {
+        let due = Date(timeIntervalSince1970: 1_750_000_000)
+        let linked = todo("task", reminderID: "R1")
+        var remoteItem = remote("R1", "task")
+        remoteItem.due = due
+        let plan = RemindersMerge.plan(
+            todos: [linked],
+            remotes: [remoteItem],
+            snapshot: ["R1": snap("task")]
+        )
+        XCTAssertEqual(plan.todos[0].due, due)
+        XCTAssertTrue(plan.updateRemote.isEmpty)
+        XCTAssertEqual(plan.snapshot["R1"]?.due, due)
+    }
+
+    func testLocalDueChangePropagatesToReminder() {
+        let due = Date(timeIntervalSince1970: 1_750_000_000)
+        var linked = todo("task", reminderID: "R1")
+        linked.due = due
+        let plan = RemindersMerge.plan(
+            todos: [linked],
+            remotes: [remote("R1", "task")],
+            snapshot: ["R1": snap("task")]
+        )
+        XCTAssertEqual(plan.updateRemote.map(\.due), [due])
+    }
+
     func testUnchangedPairProducesNoWork() {
         let linked = todo("steady", reminderID: "R1")
         let plan = RemindersMerge.plan(

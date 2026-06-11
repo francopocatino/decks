@@ -61,7 +61,8 @@ final class RemindersSyncEngine {
                 id: reminder.calendarItemIdentifier,
                 text: text,
                 done: reminder.isCompleted,
-                completedAt: reminder.completionDate
+                completedAt: reminder.completionDate,
+                due: reminder.dueDateComponents.flatMap { Calendar.current.date(from: $0) }
             )
         }
 
@@ -75,6 +76,8 @@ final class RemindersSyncEngine {
             reminder.title = update.text
             reminder.isCompleted = update.done
             if update.done { reminder.completionDate = update.completedAt ?? Date() }
+            let currentDue = reminder.dueDateComponents.flatMap { Calendar.current.date(from: $0) }
+            if currentDue != update.due { setDue(update.due, on: reminder) }
             try? eventStore.save(reminder, commit: false)
         }
         for id in plan.deleteRemote {
@@ -88,11 +91,13 @@ final class RemindersSyncEngine {
             reminder.title = plan.todos[index].text
             reminder.isCompleted = plan.todos[index].done
             if plan.todos[index].done { reminder.completionDate = plan.todos[index].doneAt ?? Date() }
+            setDue(plan.todos[index].due, on: reminder)
             guard (try? eventStore.save(reminder, commit: false)) != nil else { continue }
             plan.todos[index].reminderID = reminder.calendarItemIdentifier
             plan.snapshot[reminder.calendarItemIdentifier] = RemindersMerge.Snapshot(
                 text: plan.todos[index].text,
-                done: plan.todos[index].done
+                done: plan.todos[index].done,
+                due: plan.todos[index].due
             )
         }
         try? eventStore.commit()
@@ -103,6 +108,13 @@ final class RemindersSyncEngine {
         if plan.snapshot != snapshot {
             Storage.writeJSON(plan.snapshot, to: snapshotURL)
         }
+    }
+
+    private func setDue(_ due: Date?, on reminder: EKReminder) {
+        reminder.dueDateComponents = due.map {
+            Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: $0)
+        }
+        reminder.alarms = due.map { [EKAlarm(absoluteDate: $0)] }
     }
 
     private func ensureCalendar(for deck: Deck) -> EKCalendar? {

@@ -51,6 +51,13 @@ final class IdentityStore {
         profiles[slug] = nil
     }
 
+    func effectiveCalendarSources(for slug: String, parent: String?) -> [String] {
+        let own = profile(slug).calendarSources ?? []
+        if !own.isEmpty { return own }
+        if let parent { return profile(parent).calendarSources ?? [] }
+        return []
+    }
+
     func accountName(_ id: UUID?) -> String? {
         guard let id else { return nil }
         return accounts.first { $0.id == id }?.name
