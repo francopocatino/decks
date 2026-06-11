@@ -93,6 +93,8 @@ struct DeckProfile: Codable, Hashable {
     var folders: [String]
     var instructions: String
     var calendarSources: [String]?
+    var remindersSync: Bool?
+    var remindersCalendarID: String?
 
     init() {
         accountID = nil
@@ -102,5 +104,7 @@ struct DeckProfile: Codable, Hashable {
         folders = []
         instructions = ""
         calendarSources = nil
+        remindersSync = nil
+        remindersCalendarID = nil
     }
 }

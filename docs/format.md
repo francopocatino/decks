@@ -11,6 +11,7 @@ Everything lives under `~/.decks`, or under `$DECKS_DIR` when that is set.
     links.json          array of links
     daily.md            free markdown, dated entries
     notes.md            free markdown
+    reminders-sync.json app-internal Apple Reminders sync state
 ```
 
 Structured data is JSON, free text is markdown. Dates are RFC 3339 strings in UTC
@@ -37,6 +38,10 @@ them without extra work.
 ```
 
 `doneAt` is written only when the item is done.
+
+`reminderID` is written only on decks that sync with Apple Reminders; it links
+the to-do to its reminder. Preserve it when rewriting the file. The app keeps
+its last-synced state in `reminders-sync.json` — leave that file alone.
 
 ## links.json
 

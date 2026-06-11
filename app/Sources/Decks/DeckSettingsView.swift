@@ -118,6 +118,13 @@ struct DeckSettingsForm: View {
                 Text("Which accounts the Meetings button reads from. None selected means all calendars.")
             }
             Section {
+                Toggle("Sync to-dos with Apple Reminders", isOn: remindersBinding)
+            } header: {
+                Text("Reminders")
+            } footer: {
+                Text("Keeps a \"\(deck.name)\" list in Apple Reminders in sync both ways, so this deck's to-dos reach your iPhone, Apple Watch and Siri. Turning it off leaves the list as it is.")
+            }
+            Section {
                 ForEach(profile.folders, id: \.self) { folder in
                     Text(folder).font(.callout).foregroundStyle(.secondary)
                 }
@@ -151,6 +158,22 @@ struct DeckSettingsForm: View {
                 store.setParent(deck.slug, to: value)
             }
         }
+    }
+
+    private var remindersBinding: Binding<Bool> {
+        Binding(
+            get: { profile.remindersSync ?? false },
+            set: { isOn in
+                guard isOn else {
+                    profile.remindersSync = nil
+                    return
+                }
+                Task {
+                    let granted = await RemindersSyncEngine.requestAccess()
+                    profile.remindersSync = granted ? true : nil
+                }
+            }
+        )
     }
 
     private func calendarBinding(_ id: String) -> Binding<Bool> {

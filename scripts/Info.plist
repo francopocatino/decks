@@ -28,5 +28,9 @@
     <string>Decks reads today's events to add your meetings to a deck's daily log.</string>
     <key>NSCalendarsFullAccessUsageDescription</key>
     <string>Decks reads today's events to add your meetings to a deck's daily log.</string>
+    <key>NSRemindersUsageDescription</key>
+    <string>Decks keeps a deck's to-dos in sync with its list in Apple Reminders.</string>
+    <key>NSRemindersFullAccessUsageDescription</key>
+    <string>Decks keeps a deck's to-dos in sync with its list in Apple Reminders.</string>
 </dict>
 </plist>

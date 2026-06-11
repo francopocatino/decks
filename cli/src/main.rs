@@ -112,6 +112,12 @@ struct Todo {
     created_at: String,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     done_at: Option<String>,
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        default,
+        rename = "reminderID"
+    )]
+    reminder_id: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -747,6 +753,7 @@ fn add(slug: &str, text: String) {
             done: false,
             created_at: now(),
             done_at: None,
+            reminder_id: None,
         },
     );
     write_todos(slug, &todos);
@@ -1045,10 +1052,21 @@ mod tests {
             done: false,
             created_at: "2026-06-08T20:00:00Z".into(),
             done_at: None,
+            reminder_id: None,
         };
         let json = serde_json::to_string(&todo).unwrap();
         assert!(json.contains("\"createdAt\""));
         assert!(!json.contains("doneAt"));
+        assert!(!json.contains("reminderID"));
+    }
+
+    #[test]
+    fn todo_preserves_reminder_id_round_trip() {
+        let json = r#"{"id":"ID","text":"review","done":false,"createdAt":"2026-06-08T20:00:00Z","reminderID":"ABC-123"}"#;
+        let todo: Todo = serde_json::from_str(json).unwrap();
+        assert_eq!(todo.reminder_id.as_deref(), Some("ABC-123"));
+        let out = serde_json::to_string(&todo).unwrap();
+        assert!(out.contains("\"reminderID\":\"ABC-123\""));
     }
 
     #[test]

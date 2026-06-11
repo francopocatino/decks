@@ -6,6 +6,7 @@ struct RootView: View {
     @Environment(UpdateChecker.self) private var updates
     @Environment(IdentityStore.self) private var identity
     @Environment(ChatStore.self) private var chat
+    @Environment(RemindersSyncEngine.self) private var reminders
     @Environment(\.openSettings) private var openSettings
     @State private var showingNewDeck = false
     @State private var newDeckName = ""
@@ -115,6 +116,7 @@ struct RootView: View {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1.5))
                 store.reloadIfChanged()
+                await reminders.tick()
             }
         }
         .toolbar {
