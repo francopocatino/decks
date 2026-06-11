@@ -8,6 +8,7 @@ struct RootView: View {
     @Environment(ChatStore.self) private var chat
     @Environment(RemindersSyncEngine.self) private var reminders
     @Environment(NotificationScheduler.self) private var notifications
+    @Environment(TimeTrackingEngine.self) private var tracker
     @Environment(\.openSettings) private var openSettings
     @State private var showingNewDeck = false
     @State private var newDeckName = ""
@@ -117,6 +118,7 @@ struct RootView: View {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1.5))
                 store.reloadIfChanged()
+                tracker.tick()
                 await reminders.tick()
                 await notifications.tick()
             }

@@ -11,6 +11,7 @@ struct DecksApp: App {
     @State private var chat = ChatStore()
     @State private var reminders: RemindersSyncEngine
     @State private var notifications: NotificationScheduler
+    @State private var tracker: TimeTrackingEngine
     @AppStorage("appearance") private var appearance: AppAppearance = .system
 
     init() {
@@ -20,6 +21,7 @@ struct DecksApp: App {
         _identity = State(initialValue: identity)
         _reminders = State(initialValue: RemindersSyncEngine(store: store, identity: identity))
         _notifications = State(initialValue: NotificationScheduler(store: store, identity: identity))
+        _tracker = State(initialValue: TimeTrackingEngine(store: store))
     }
 
     var body: some Scene {
@@ -31,6 +33,7 @@ struct DecksApp: App {
                 .environment(chat)
                 .environment(reminders)
                 .environment(notifications)
+                .environment(tracker)
                 .onAppear { NSApp.appearance = appearance.nsAppearance }
                 .onChange(of: appearance) { _, value in NSApp.appearance = value.nsAppearance }
                 .task { await updates.check() }

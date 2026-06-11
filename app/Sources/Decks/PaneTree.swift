@@ -117,6 +117,7 @@ private struct LeafPane: View {
         case .notes: NotesView(slug: slug)
         case .links: LinksView(slug: slug)
         case .meetings: MeetingsView(slug: slug)
+        case .time: TimeView(slug: slug)
         }
     }
 }

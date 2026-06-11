@@ -375,6 +375,7 @@ final class DecksStore {
             var isDeck = false
             for file in files.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
                 if file.pathExtension == "corrupt" { continue }
+                if file.lastPathComponent == "time.json" { continue }
                 if file.lastPathComponent == "deck.json" { isDeck = true }
                 let date = (try? file.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
                 hasher.combine(file.lastPathComponent)

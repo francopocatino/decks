@@ -12,6 +12,7 @@ Everything lives under `~/.decks`, or under `$DECKS_DIR` when that is set.
     daily.md            free markdown, dated entries
     notes.md            free markdown
     reminders-sync.json app-internal Apple Reminders sync state
+    time.json           seconds of context time per local day
 ```
 
 Structured data is JSON, free text is markdown. Dates are RFC 3339 strings in UTC
