@@ -121,11 +121,16 @@ struct RootView: View {
             if let update = updates.update {
                 ToolbarItem(placement: .primaryAction) {
                     Button {
-                        NSWorkspace.shared.open(update.download ?? update.url)
+                        Task { await updates.install() }
                     } label: {
-                        Label("Update \(update.version)", systemImage: "arrow.down.circle.fill")
+                        if updates.installing {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Label("Update \(update.version)", systemImage: "arrow.down.circle.fill")
+                        }
                     }
-                    .help("Download version \(update.version)")
+                    .disabled(updates.installing)
+                    .help("Install version \(update.version) and relaunch")
                 }
             }
         }
