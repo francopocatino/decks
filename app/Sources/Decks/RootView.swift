@@ -10,6 +10,7 @@ struct RootView: View {
     @Environment(NotificationScheduler.self) private var notifications
     @Environment(TimeTrackingEngine.self) private var tracker
     @Environment(SpotlightIndexer.self) private var spotlight
+    @Environment(CloudMirrorEngine.self) private var mirror
     @Environment(\.openSettings) private var openSettings
     @State private var showingNewDeck = false
     @State private var newDeckName = ""
@@ -121,6 +122,7 @@ struct RootView: View {
                 store.reloadIfChanged()
                 tracker.tick()
                 spotlight.tick()
+                mirror.tick()
                 await reminders.tick()
                 await notifications.tick()
             }

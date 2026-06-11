@@ -65,6 +65,7 @@ struct GeneralSettingsView: View {
     @AppStorage("meetingAlerts") private var meetingAlerts = false
     @AppStorage("meetingAlertLead") private var meetingAlertLead = 2
     @AppStorage("dueAlerts") private var dueAlerts = false
+    @AppStorage("icloudMirror") private var icloudMirror = false
     @Environment(UpdateChecker.self) private var updates
 
     var body: some View {
@@ -102,6 +103,16 @@ struct GeneralSettingsView: View {
                 Text("Notifications")
             } footer: {
                 Text("Meeting alerts cover every deck's calendars and offer a Join button when the event has a meeting link. Due alerts fire when an open to-do reaches its due date.")
+            }
+            Section {
+                Toggle("Mirror decks to iCloud Drive", isOn: $icloudMirror)
+                    .disabled(!CloudMirrorEngine.isAvailable)
+            } header: {
+                Text("iCloud")
+            } footer: {
+                Text(CloudMirrorEngine.isAvailable
+                    ? "Writes a read-only markdown digest per deck to iCloud Drive → Decks, readable from Files on iPhone. One-way: edits there are overwritten."
+                    : "iCloud Drive is not available on this Mac.")
             }
             Section {
                 LabeledContent("Current version", value: updates.currentVersion)
