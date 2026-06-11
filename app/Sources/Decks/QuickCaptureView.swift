@@ -2,9 +2,12 @@ import SwiftUI
 
 struct QuickCaptureView: View {
     @Environment(DecksStore.self) private var store
+    var focusOnAppear = false
+    var onDone: (() -> Void)?
     @State private var slug: String?
     @State private var text = ""
     @State private var mode: CaptureMode = .todo
+    @FocusState private var fieldFocused: Bool
 
     private enum CaptureMode: String, CaseIterable, Identifiable {
         case todo, daily
@@ -33,6 +36,7 @@ struct QuickCaptureView: View {
             TextField(mode == .todo ? "Add a to-do…" : "Add to today…", text: $text, axis: .vertical)
                 .lineLimit(1 ... 4)
                 .textFieldStyle(.roundedBorder)
+                .focused($fieldFocused)
                 .onSubmit(add)
 
             HStack {
@@ -48,6 +52,9 @@ struct QuickCaptureView: View {
             if slug == nil || !store.visibleDecks.contains(where: { $0.slug == slug }) {
                 slug = store.activeSlug ?? store.visibleDecks.first?.slug
             }
+            if focusOnAppear {
+                Task { fieldFocused = true }
+            }
         }
     }
 
@@ -58,5 +65,6 @@ struct QuickCaptureView: View {
         case .daily: store.addDailyLine(text, to: slug)
         }
         text = ""
+        onDone?()
     }
 }

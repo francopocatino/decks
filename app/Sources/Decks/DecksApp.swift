@@ -12,7 +12,10 @@ struct DecksApp: App {
     @State private var reminders: RemindersSyncEngine
     @State private var notifications: NotificationScheduler
     @State private var tracker: TimeTrackingEngine
+    @State private var hotkey = HotkeyManager()
+    @State private var capturePanel: QuickCapturePanel
     @AppStorage("appearance") private var appearance: AppAppearance = .system
+    @AppStorage("captureHotkey") private var captureHotkey: HotkeyOption = .ctrlOptSpace
 
     init() {
         let store = DecksStore()
@@ -22,6 +25,7 @@ struct DecksApp: App {
         _reminders = State(initialValue: RemindersSyncEngine(store: store, identity: identity))
         _notifications = State(initialValue: NotificationScheduler(store: store, identity: identity))
         _tracker = State(initialValue: TimeTrackingEngine(store: store))
+        _capturePanel = State(initialValue: QuickCapturePanel(store: store))
     }
 
     var body: some Scene {
@@ -34,8 +38,14 @@ struct DecksApp: App {
                 .environment(reminders)
                 .environment(notifications)
                 .environment(tracker)
-                .onAppear { NSApp.appearance = appearance.nsAppearance }
+                .onAppear {
+                    NSApp.appearance = appearance.nsAppearance
+                    hotkey.apply(captureHotkey) { [capturePanel] in capturePanel.toggle() }
+                }
                 .onChange(of: appearance) { _, value in NSApp.appearance = value.nsAppearance }
+                .onChange(of: captureHotkey) { _, value in
+                    hotkey.apply(value) { [capturePanel] in capturePanel.toggle() }
+                }
                 .task { await updates.check() }
         }
         .windowToolbarStyle(.unified(showsTitle: true))

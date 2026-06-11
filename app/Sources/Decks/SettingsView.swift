@@ -61,6 +61,7 @@ struct SettingsView: View {
 
 struct GeneralSettingsView: View {
     @AppStorage("appearance") private var appearance: AppAppearance = .system
+    @AppStorage("captureHotkey") private var captureHotkey: HotkeyOption = .ctrlOptSpace
     @AppStorage("meetingAlerts") private var meetingAlerts = false
     @AppStorage("meetingAlertLead") private var meetingAlertLead = 2
     @AppStorage("dueAlerts") private var dueAlerts = false
@@ -75,6 +76,17 @@ struct GeneralSettingsView: View {
                     }
                 }
                 .pickerStyle(.segmented)
+            }
+            Section {
+                Picker("Quick capture hotkey", selection: $captureHotkey) {
+                    ForEach(HotkeyOption.allCases) { option in
+                        Text(option.label).tag(option)
+                    }
+                }
+            } header: {
+                Text("Quick capture")
+            } footer: {
+                Text("Opens the capture panel from anywhere, even when Decks is in the background.")
             }
             Section {
                 Toggle("Meeting alerts", isOn: alertsBinding($meetingAlerts))
