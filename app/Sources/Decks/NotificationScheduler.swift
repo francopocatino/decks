@@ -73,7 +73,7 @@ final class NotificationScheduler {
         let center = UNUserNotificationCenter.current()
         center.removeAllPendingNotificationRequests()
         for item in planned {
-            try? await center.add(request(for: item))
+            center.add(request(for: item), withCompletionHandler: nil)
         }
     }
 
