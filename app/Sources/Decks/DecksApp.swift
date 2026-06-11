@@ -1,4 +1,5 @@
 import AppKit
+import CoreSpotlight
 import SwiftUI
 import UserNotifications
 
@@ -12,6 +13,7 @@ struct DecksApp: App {
     @State private var reminders: RemindersSyncEngine
     @State private var notifications: NotificationScheduler
     @State private var tracker: TimeTrackingEngine
+    @State private var spotlight: SpotlightIndexer
     @State private var hotkey = HotkeyManager()
     @State private var capturePanel: QuickCapturePanel
     @AppStorage("appearance") private var appearance: AppAppearance = .system
@@ -25,6 +27,7 @@ struct DecksApp: App {
         _reminders = State(initialValue: RemindersSyncEngine(store: store, identity: identity))
         _notifications = State(initialValue: NotificationScheduler(store: store, identity: identity))
         _tracker = State(initialValue: TimeTrackingEngine(store: store))
+        _spotlight = State(initialValue: SpotlightIndexer(store: store))
         _capturePanel = State(initialValue: QuickCapturePanel(store: store))
     }
 
@@ -38,6 +41,15 @@ struct DecksApp: App {
                 .environment(reminders)
                 .environment(notifications)
                 .environment(tracker)
+                .environment(spotlight)
+                .onContinueUserActivity(CSSearchableItemActionType) { activity in
+                    guard
+                        let identifier = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String,
+                        let slug = SpotlightEntry.slug(fromIdentifier: identifier),
+                        store.deck(slug) != nil
+                    else { return }
+                    store.select(slug)
+                }
                 .onAppear {
                     NSApp.appearance = appearance.nsAppearance
                     hotkey.apply(captureHotkey) { [capturePanel] in capturePanel.toggle() }

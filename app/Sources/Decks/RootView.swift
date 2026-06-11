@@ -9,6 +9,7 @@ struct RootView: View {
     @Environment(RemindersSyncEngine.self) private var reminders
     @Environment(NotificationScheduler.self) private var notifications
     @Environment(TimeTrackingEngine.self) private var tracker
+    @Environment(SpotlightIndexer.self) private var spotlight
     @Environment(\.openSettings) private var openSettings
     @State private var showingNewDeck = false
     @State private var newDeckName = ""
@@ -119,6 +120,7 @@ struct RootView: View {
                 try? await Task.sleep(for: .seconds(1.5))
                 store.reloadIfChanged()
                 tracker.tick()
+                spotlight.tick()
                 await reminders.tick()
                 await notifications.tick()
             }
