@@ -40,7 +40,7 @@ struct DailyView: View {
             }
             .buttonStyle(.borderless)
 
-            if DeckAssistant.connector(for: slug, identity: identity) != nil {
+            if DeckAssistant.hasBackend(for: slug, identity: identity) {
                 Button(action: draftToday) {
                     if working {
                         ProgressView().controlSize(.small)
