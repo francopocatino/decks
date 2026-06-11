@@ -268,3 +268,21 @@ fn link_and_deck_management() {
 
     std::fs::remove_dir_all(&dir).ok();
 }
+
+#[test]
+fn open_sets_the_active_deck() {
+    let dir = temp_dir("open");
+
+    run(&dir, &["new", "Acme"]);
+    run(&dir, &["new", "Beta"]);
+    run(&dir, &["open", "beta"]);
+
+    let state = std::fs::read_to_string(dir.join("state.json")).unwrap();
+    assert!(state.contains("\"active\": \"beta\""), "{state}");
+
+    run(&dir, &["open", "acme"]);
+    let state = std::fs::read_to_string(dir.join("state.json")).unwrap();
+    assert!(state.contains("\"active\": \"acme\""), "{state}");
+
+    std::fs::remove_dir_all(&dir).ok();
+}

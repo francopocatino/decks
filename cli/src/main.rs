@@ -28,6 +28,8 @@ enum Command {
     List,
     /// Show a deck's to-dos and links
     Show { slug: String },
+    /// Make a deck the active one in the app
+    Open { slug: String },
     /// Create a deck
     New { name: Vec<String> },
     /// Add a to-do to a deck
@@ -170,6 +172,7 @@ fn main() {
     match cli.command {
         Command::List => list(cli.json),
         Command::Show { slug } => show(&slug, cli.json),
+        Command::Open { slug } => open(&slug),
         Command::New { name } => new(name.join(" ")),
         Command::Add { slug, text } => add(&slug, text.join(" ")),
         Command::Done { slug, index } => done(&slug, index),
@@ -708,6 +711,23 @@ fn show(slug: &str, json: bool) {
     for todo in &todos {
         let mark = if todo.done { "x" } else { " " };
         println!("[{mark}] {}", todo.text);
+    }
+}
+
+fn open(slug: &str) {
+    if read_deck(slug).is_none() {
+        eprintln!("no deck \"{slug}\"");
+        return;
+    }
+    let path = root().join("state.json");
+    let mut state = fs::read_to_string(&path)
+        .ok()
+        .and_then(|data| serde_json::from_str::<serde_json::Value>(&data).ok())
+        .filter(serde_json::Value::is_object)
+        .unwrap_or_else(|| serde_json::json!({}));
+    state["active"] = serde_json::Value::String(slug.to_string());
+    if let Ok(json) = serde_json::to_string_pretty(&state) {
+        let _ = fs::write(path, json);
     }
 }
 
