@@ -19,6 +19,7 @@ final class DecksStore {
     private var pendingWrites: [String: @MainActor () -> Void] = [:]
     private var lastDeckSignatures: [String: Int] = [:]
     private var lastOrderSignature = 0
+    @ObservationIgnored var onTodosChanged: ((String) -> Void)?
 
     init() {
         Storage.ensureDirectory(Storage.root)
@@ -204,8 +205,14 @@ final class DecksStore {
         saveTodos(slug)
     }
 
+    func replaceTodos(_ todos: [Todo], for slug: String) {
+        todosByDeck[slug] = todos
+        saveTodos(slug)
+    }
+
     private func saveTodos(_ slug: String) {
         Storage.writeJSON(todosByDeck[slug] ?? [], to: Storage.deckDirectory(slug).appendingPathComponent("todos.json"))
+        onTodosChanged?(slug)
     }
 
     // MARK: Links
