@@ -61,6 +61,7 @@ struct SettingsView: View {
 
 struct GeneralSettingsView: View {
     @AppStorage("appearance") private var appearance: AppAppearance = .system
+    @Environment(UpdateChecker.self) private var updates
 
     var body: some View {
         Form {
@@ -71,6 +72,36 @@ struct GeneralSettingsView: View {
                     }
                 }
                 .pickerStyle(.segmented)
+            }
+            Section {
+                LabeledContent("Current version", value: updates.currentVersion)
+                if let update = updates.update {
+                    HStack {
+                        Text("Version \(update.version) is available")
+                        Spacer()
+                        Button {
+                            Task { await updates.install() }
+                        } label: {
+                            if updates.installing {
+                                ProgressView().controlSize(.small)
+                            } else {
+                                Text("Install & relaunch")
+                            }
+                        }
+                        .disabled(updates.installing)
+                    }
+                    if let error = updates.installError {
+                        Text(error).font(.caption).foregroundStyle(.red)
+                    }
+                } else {
+                    Button("Check for updates") {
+                        Task { await updates.check() }
+                    }
+                }
+            } header: {
+                Text("Software update")
+            } footer: {
+                Text("Updates download and replace the app, then relaunch. Calendar access may need re-granting after an update.")
             }
         }
         .formStyle(.grouped)

@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Observation
 
@@ -11,8 +12,73 @@ final class UpdateChecker {
     }
 
     private(set) var update: Update?
+    private(set) var installing = false
+    var installError: String?
 
     private let repo = "francopocatino/decks"
+
+    var currentVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+    }
+
+    func install() async {
+        guard let update, let zip = update.download, !installing else { return }
+        installing = true
+        installError = nil
+        do {
+            let downloaded = try await URLSession.shared.download(from: zip).0
+            let target = Bundle.main.bundlePath
+            let script = try await Task.detached { try Self.stage(zip: downloaded, target: target) }.value
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/bin/bash")
+            process.arguments = [script.path]
+            try process.run()
+            NSApp.terminate(nil)
+        } catch {
+            installError = error.localizedDescription
+            installing = false
+        }
+    }
+
+    private nonisolated static func stage(zip: URL, target: String) throws -> URL {
+        let work = FileManager.default.temporaryDirectory
+            .appendingPathComponent("DecksUpdate-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
+
+        let extract = Process()
+        extract.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+        extract.arguments = ["-x", "-k", zip.path, work.path]
+        try extract.run()
+        extract.waitUntilExit()
+
+        let newApp = work.appendingPathComponent("Decks.app")
+        guard extract.terminationStatus == 0, FileManager.default.fileExists(atPath: newApp.path) else {
+            throw UpdateError.badArchive
+        }
+
+        let script = """
+        #!/bin/bash
+        while /usr/bin/pgrep -x Decks >/dev/null 2>&1; do sleep 0.3; done
+        /bin/rm -rf "\(target)"
+        /usr/bin/ditto "\(newApp.path)" "\(target)"
+        /usr/bin/xattr -dr com.apple.quarantine "\(target)" 2>/dev/null
+        /usr/bin/open "\(target)"
+        /bin/rm -rf "\(work.path)"
+        """
+        let scriptURL = work.appendingPathComponent("swap.sh")
+        try script.write(to: scriptURL, atomically: true, encoding: .utf8)
+        return scriptURL
+    }
+
+    enum UpdateError: LocalizedError {
+        case badArchive
+
+        var errorDescription: String? {
+            switch self {
+            case .badArchive: "The downloaded update was not a valid Decks.app."
+            }
+        }
+    }
 
     func check() async {
         guard

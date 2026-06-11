@@ -42,6 +42,7 @@ struct DecksApp: App {
             SettingsView()
                 .environment(identity)
                 .environment(store)
+                .environment(updates)
         }
     }
 }
