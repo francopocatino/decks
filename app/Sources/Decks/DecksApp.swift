@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UserNotifications
 
 @main
 struct DecksApp: App {
@@ -9,6 +10,7 @@ struct DecksApp: App {
     @State private var identity: IdentityStore
     @State private var chat = ChatStore()
     @State private var reminders: RemindersSyncEngine
+    @State private var notifications: NotificationScheduler
     @AppStorage("appearance") private var appearance: AppAppearance = .system
 
     init() {
@@ -17,6 +19,7 @@ struct DecksApp: App {
         _store = State(initialValue: store)
         _identity = State(initialValue: identity)
         _reminders = State(initialValue: RemindersSyncEngine(store: store, identity: identity))
+        _notifications = State(initialValue: NotificationScheduler(store: store, identity: identity))
     }
 
     var body: some Scene {
@@ -27,6 +30,7 @@ struct DecksApp: App {
                 .environment(identity)
                 .environment(chat)
                 .environment(reminders)
+                .environment(notifications)
                 .onAppear { NSApp.appearance = appearance.nsAppearance }
                 .onChange(of: appearance) { _, value in NSApp.appearance = value.nsAppearance }
                 .task { await updates.check() }
@@ -58,13 +62,32 @@ struct DecksApp: App {
 }
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
+        if NotificationScheduler.isSupported {
+            UNUserNotificationCenter.current().delegate = self
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         true
+    }
+
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification
+    ) async -> UNNotificationPresentationOptions {
+        [.banner, .sound]
+    }
+
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse
+    ) async {
+        let info = response.notification.request.content.userInfo
+        guard let raw = info["url"] as? String, let url = URL(string: raw) else { return }
+        await MainActor.run { _ = NSWorkspace.shared.open(url) }
     }
 }

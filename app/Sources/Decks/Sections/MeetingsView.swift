@@ -25,12 +25,7 @@ struct MeetingsView: View {
     }
 
     private var sources: [String] {
-        let own = identity.profile(slug).calendarSources ?? []
-        if !own.isEmpty { return own }
-        if let parent = store.deck(slug)?.parent {
-            return identity.profile(parent).calendarSources ?? []
-        }
-        return []
+        identity.effectiveCalendarSources(for: slug, parent: store.deck(slug)?.parent)
     }
 
     private var header: some View {

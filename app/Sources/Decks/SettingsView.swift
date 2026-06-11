@@ -61,6 +61,9 @@ struct SettingsView: View {
 
 struct GeneralSettingsView: View {
     @AppStorage("appearance") private var appearance: AppAppearance = .system
+    @AppStorage("meetingAlerts") private var meetingAlerts = false
+    @AppStorage("meetingAlertLead") private var meetingAlertLead = 2
+    @AppStorage("dueAlerts") private var dueAlerts = false
     @Environment(UpdateChecker.self) private var updates
 
     var body: some View {
@@ -72,6 +75,21 @@ struct GeneralSettingsView: View {
                     }
                 }
                 .pickerStyle(.segmented)
+            }
+            Section {
+                Toggle("Meeting alerts", isOn: alertsBinding($meetingAlerts))
+                if meetingAlerts {
+                    Picker("Warn me", selection: $meetingAlertLead) {
+                        ForEach([1, 2, 5, 10], id: \.self) { minutes in
+                            Text("\(minutes) min before").tag(minutes)
+                        }
+                    }
+                }
+                Toggle("To-do due alerts", isOn: alertsBinding($dueAlerts))
+            } header: {
+                Text("Notifications")
+            } footer: {
+                Text("Meeting alerts cover every deck's calendars and offer a Join button when the event has a meeting link. Due alerts fire when an open to-do reaches its due date.")
             }
             Section {
                 LabeledContent("Current version", value: updates.currentVersion)
@@ -105,6 +123,21 @@ struct GeneralSettingsView: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    private func alertsBinding(_ storage: Binding<Bool>) -> Binding<Bool> {
+        Binding(
+            get: { storage.wrappedValue },
+            set: { isOn in
+                guard isOn else {
+                    storage.wrappedValue = false
+                    return
+                }
+                Task {
+                    storage.wrappedValue = await NotificationScheduler.requestAccess()
+                }
+            }
+        )
     }
 }
 

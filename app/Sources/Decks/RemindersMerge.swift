@@ -10,11 +10,13 @@ enum RemindersMerge {
         var text: String
         var done: Bool
         var completedAt: Date?
+        var due: Date?
     }
 
     struct Snapshot: Codable, Hashable {
         var text: String
         var done: Bool
+        var due: Date?
     }
 
     struct Plan {
@@ -49,20 +51,23 @@ enum RemindersMerge {
             }
             matched.insert(reminderID)
             let snap = snapshot[reminderID]
-            let appChanged = snap.map { todo.text != $0.text || todo.done != $0.done } ?? true
-            let remoteChanged = snap.map { remote.text != $0.text || remote.done != $0.done } ?? false
+            let appChanged = snap.map { todo.text != $0.text || todo.done != $0.done || todo.due != $0.due } ?? true
+            let remoteChanged = snap.map { remote.text != $0.text || remote.done != $0.done || remote.due != $0.due } ?? false
             if appChanged {
-                if remote.text != todo.text || remote.done != todo.done {
-                    updateRemote.append(Remote(id: reminderID, text: todo.text, done: todo.done, completedAt: todo.doneAt))
+                if remote.text != todo.text || remote.done != todo.done || remote.due != todo.due {
+                    updateRemote.append(
+                        Remote(id: reminderID, text: todo.text, done: todo.done, completedAt: todo.doneAt, due: todo.due)
+                    )
                 }
             } else if remoteChanged {
                 todo.text = remote.text
+                todo.due = remote.due
                 if todo.done != remote.done {
                     todo.done = remote.done
                     todo.doneAt = remote.done ? (remote.completedAt ?? Date()) : nil
                 }
             }
-            nextSnapshot[reminderID] = Snapshot(text: todo.text, done: todo.done)
+            nextSnapshot[reminderID] = Snapshot(text: todo.text, done: todo.done, due: todo.due)
             result.append(todo)
         }
 
@@ -73,12 +78,13 @@ enum RemindersMerge {
             }
             var todo = Todo(text: remote.text)
             todo.reminderID = remote.id
+            todo.due = remote.due
             if remote.done {
                 todo.done = true
                 todo.doneAt = remote.completedAt ?? Date()
             }
             result.insert(todo, at: 0)
-            nextSnapshot[remote.id] = Snapshot(text: todo.text, done: todo.done)
+            nextSnapshot[remote.id] = Snapshot(text: todo.text, done: todo.done, due: todo.due)
         }
 
         return Plan(

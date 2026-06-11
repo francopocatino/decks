@@ -200,6 +200,17 @@ final class DecksStore {
         saveTodos(slug)
     }
 
+    func setDue(_ due: Date?, for id: UUID, in slug: String) {
+        guard var list = todosByDeck[slug], let index = list.firstIndex(where: { $0.id == id }) else { return }
+        let truncated = due.map { date in
+            Calendar.current.date(from: Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: date)) ?? date
+        }
+        guard list[index].due != truncated else { return }
+        list[index].due = truncated
+        todosByDeck[slug] = list
+        saveTodos(slug)
+    }
+
     func deleteTodo(_ id: UUID, in slug: String) {
         todosByDeck[slug]?.removeAll { $0.id == id }
         saveTodos(slug)

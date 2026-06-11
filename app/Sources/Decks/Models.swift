@@ -85,6 +85,7 @@ struct Todo: Identifiable, Codable, Hashable {
     var done: Bool
     var createdAt: Date
     var doneAt: Date?
+    var due: Date?
     var reminderID: String?
 
     init(text: String) {
@@ -93,6 +94,7 @@ struct Todo: Identifiable, Codable, Hashable {
         done = false
         createdAt = Date()
         doneAt = nil
+        due = nil
         reminderID = nil
     }
 }

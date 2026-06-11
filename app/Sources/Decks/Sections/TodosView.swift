@@ -50,10 +50,17 @@ struct TodosView: View {
                         if !focused { commitEdit() }
                     }
             } else {
-                Text(todo.text)
-                    .strikethrough(todo.done, color: .secondary)
-                    .foregroundStyle(todo.done ? .secondary : .primary)
-                    .onTapGesture(count: 2) { startEdit(todo) }
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(todo.text)
+                        .strikethrough(todo.done, color: .secondary)
+                        .foregroundStyle(todo.done ? .secondary : .primary)
+                    if let due = todo.due {
+                        Text(dueLabel(due))
+                            .font(.caption)
+                            .foregroundStyle(!todo.done && due < Date() ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
+                    }
+                }
+                .onTapGesture(count: 2) { startEdit(todo) }
             }
 
             Spacer()
@@ -61,10 +68,32 @@ struct TodosView: View {
         .padding(.vertical, 2)
         .contextMenu {
             Button("Edit") { startEdit(todo) }
+            Menu("Due") {
+                Button("Today 18:00") { store.setDue(dueDate(daysAhead: 0, hour: 18), for: todo.id, in: slug) }
+                Button("Tomorrow 09:00") { store.setDue(dueDate(daysAhead: 1, hour: 9), for: todo.id, in: slug) }
+                Button("Next week 09:00") { store.setDue(dueDate(daysAhead: 7, hour: 9), for: todo.id, in: slug) }
+                if todo.due != nil {
+                    Divider()
+                    Button("Clear") { store.setDue(nil, for: todo.id, in: slug) }
+                }
+            }
             Button("Delete", role: .destructive) {
                 store.deleteTodo(todo.id, in: slug)
             }
         }
+    }
+
+    private func dueDate(daysAhead: Int, hour: Int) -> Date {
+        let calendar = Calendar.current
+        let day = calendar.date(byAdding: .day, value: daysAhead, to: calendar.startOfDay(for: Date())) ?? Date()
+        return calendar.date(bySettingHour: hour, minute: 0, second: 0, of: day) ?? day
+    }
+
+    private func dueLabel(_ due: Date) -> String {
+        if Calendar.current.isDateInToday(due) {
+            return "Due \(due.formatted(date: .omitted, time: .shortened))"
+        }
+        return "Due \(due.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))) · \(due.formatted(date: .omitted, time: .shortened))"
     }
 
     private func startEdit(_ todo: Todo) {
