@@ -2,6 +2,7 @@ import SwiftUI
 
 struct TodosView: View {
     @Environment(DecksStore.self) private var store
+    @Environment(IdentityStore.self) private var identity
     let slug: String
     @State private var draft = ""
     @State private var editingID: UUID?
@@ -77,9 +78,33 @@ struct TodosView: View {
                     Button("Clear") { store.setDue(nil, for: todo.id, in: slug) }
                 }
             }
+            Menu("Block time") {
+                Button("Next half hour, 1 h") { blockTime(todo, start: nextHalfHour(), hours: 1) }
+                Button("Today 16:00, 1 h") { blockTime(todo, start: dueDate(daysAhead: 0, hour: 16), hours: 1) }
+                Button("Tomorrow 09:00, 1 h") { blockTime(todo, start: dueDate(daysAhead: 1, hour: 9), hours: 1) }
+            }
             Button("Delete", role: .destructive) {
                 store.deleteTodo(todo.id, in: slug)
             }
+        }
+    }
+
+    private func nextHalfHour(from date: Date = Date()) -> Date {
+        let interval: TimeInterval = 1800
+        return Date(timeIntervalSinceReferenceDate: (date.timeIntervalSinceReferenceDate / interval).rounded(.up) * interval)
+    }
+
+    private func blockTime(_ todo: Todo, start: Date, hours: Double) {
+        let deckName = store.deck(slug)?.name ?? slug
+        let sources = identity.effectiveCalendarSources(for: slug, parent: store.deck(slug)?.parent)
+        Task {
+            await CalendarService.createTimeBlock(
+                title: todo.text,
+                start: start,
+                duration: hours * 3600,
+                sources: sources,
+                note: "Decks · \(deckName)"
+            )
         }
     }
 
