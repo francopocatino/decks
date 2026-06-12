@@ -40,7 +40,7 @@ struct SpotlightEntry: Hashable {
 final class SpotlightIndexer {
     @ObservationIgnored private let store: DecksStore
     @ObservationIgnored private var indexed: [String: Int] = [:]
-    @ObservationIgnored private var lastRun = Date.distantPast
+    @ObservationIgnored private var throttle = Throttle(10)
 
     static var isSupported: Bool { Bundle.main.bundleIdentifier != nil }
 
@@ -48,10 +48,16 @@ final class SpotlightIndexer {
         self.store = store
     }
 
+    func deckRemoved(_ slug: String) {
+        indexed[slug] = nil
+        guard Self.isSupported else { return }
+        CSSearchableIndex.default().deleteSearchableItems(withDomainIdentifiers: [domain(slug)], completionHandler: nil)
+        persistIndexedSlugs(removing: slug)
+    }
+
     func tick() {
         guard Self.isSupported else { return }
-        guard Date().timeIntervalSince(lastRun) > 10 else { return }
-        lastRun = Date()
+        guard throttle.ready() else { return }
 
         let index = CSSearchableIndex.default()
         var seen: Set<String> = []
@@ -74,11 +80,23 @@ final class SpotlightIndexer {
             index.deleteSearchableItems(withDomainIdentifiers: [domain(deck.slug)], completionHandler: nil)
             add(entries, deck: deck.slug, to: index)
         }
-        let removed = Set(indexed.keys).subtracting(seen)
-        for slug in removed {
+        // CSSearchableIndex persists across launches while `indexed` does
+        // not, so reconcile against the persisted slug list too — it covers
+        // decks deleted while the app wasn't running.
+        let stored = Set(UserDefaults.standard.stringArray(forKey: Pref.spotlightIndexed) ?? [])
+        for slug in Set(indexed.keys).union(stored).subtracting(seen) {
             indexed[slug] = nil
             index.deleteSearchableItems(withDomainIdentifiers: [domain(slug)], completionHandler: nil)
         }
+        if stored != seen {
+            UserDefaults.standard.set(Array(seen).sorted(), forKey: Pref.spotlightIndexed)
+        }
+    }
+
+    private func persistIndexedSlugs(removing slug: String) {
+        var stored = UserDefaults.standard.stringArray(forKey: Pref.spotlightIndexed) ?? []
+        stored.removeAll { $0 == slug }
+        UserDefaults.standard.set(stored, forKey: Pref.spotlightIndexed)
     }
 
     private func add(_ entries: [SpotlightEntry], deck slug: String, to index: CSSearchableIndex) {

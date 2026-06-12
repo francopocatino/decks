@@ -8,6 +8,7 @@ struct DeckSettingsForm: View {
 
     @State private var profile = DeckProfile()
     @State private var parentSlug: String?
+    @State private var remindersDenied = false
     @State private var calendarAccounts: [CalendarAccount] = []
     @State private var calendarAuthorized = CalendarService.isAuthorized()
 
@@ -119,6 +120,11 @@ struct DeckSettingsForm: View {
             }
             Section {
                 Toggle("Sync to-dos with Apple Reminders", isOn: remindersBinding)
+                if remindersDenied {
+                    Text("Reminders access is off for Decks. Allow it in System Settings → Privacy & Security → Reminders, then try again.")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
             } header: {
                 Text("Reminders")
             } footer: {
@@ -160,6 +166,9 @@ struct DeckSettingsForm: View {
         }
     }
 
+    // Persists through the store directly: the permission Task can outlive
+    // this view (Settings closed mid-request), and a dead @State write
+    // would silently drop the toggle.
     private var remindersBinding: Binding<Bool> {
         Binding(
             get: { profile.remindersSync ?? false },
@@ -168,9 +177,14 @@ struct DeckSettingsForm: View {
                     profile.remindersSync = nil
                     return
                 }
+                let slug = deck.slug
                 Task {
                     let granted = await RemindersSyncEngine.requestAccess()
-                    profile.remindersSync = granted ? true : nil
+                    var current = identity.profile(slug)
+                    current.remindersSync = granted ? true : nil
+                    identity.saveProfile(current, for: slug)
+                    profile.remindersSync = current.remindersSync
+                    remindersDenied = !granted
                 }
             }
         )

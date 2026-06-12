@@ -27,12 +27,14 @@ enum HotkeyOption: String, CaseIterable, Identifiable {
 
 // Carbon RegisterEventHotKey: system-wide, no accessibility prompt.
 @MainActor
+@Observable
 final class HotkeyManager {
     private static let signature = OSType(0x4443_4B53)
 
-    private var hotKeyRef: EventHotKeyRef?
-    private var handlerRef: EventHandlerRef?
-    private var action: (() -> Void)?
+    private(set) var registrationFailed = false
+    @ObservationIgnored private var hotKeyRef: EventHotKeyRef?
+    @ObservationIgnored private var handlerRef: EventHandlerRef?
+    @ObservationIgnored private var action: (() -> Void)?
 
     func apply(_ option: HotkeyOption, action: @escaping () -> Void) {
         if let hotKeyRef {
@@ -40,12 +42,14 @@ final class HotkeyManager {
             self.hotKeyRef = nil
         }
         self.action = action
+        registrationFailed = false
         guard let key = option.key else { return }
         installHandlerIfNeeded()
         var ref: EventHotKeyRef?
         let id = EventHotKeyID(signature: Self.signature, id: 1)
-        RegisterEventHotKey(key.code, key.modifiers, id, GetEventDispatcherTarget(), 0, &ref)
+        let status = RegisterEventHotKey(key.code, key.modifiers, id, GetEventDispatcherTarget(), 0, &ref)
         hotKeyRef = ref
+        registrationFailed = status != noErr || ref == nil
     }
 
     private func installHandlerIfNeeded() {

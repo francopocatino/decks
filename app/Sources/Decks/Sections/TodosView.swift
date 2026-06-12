@@ -91,7 +91,7 @@ struct TodosView: View {
 
     private func nextHalfHour(from date: Date = Date()) -> Date {
         let interval: TimeInterval = 1800
-        return Date(timeIntervalSinceReferenceDate: (date.timeIntervalSinceReferenceDate / interval).rounded(.up) * interval)
+        return Date(timeIntervalSinceReferenceDate: (date.timeIntervalSinceReferenceDate / interval).rounded(.down) * interval + interval)
     }
 
     private func blockTime(_ todo: Todo, start: Date, hours: Double) {

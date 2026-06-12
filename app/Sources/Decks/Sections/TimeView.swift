@@ -74,10 +74,7 @@ struct TimeView: View {
     }
 
     private static func dayLabel(_ day: String) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd"
-        guard let date = formatter.date(from: day) else { return day }
+        guard let date = TimeLedger.date(from: day) else { return day }
         if Calendar.current.isDateInToday(date) { return "Today" }
         if Calendar.current.isDateInYesterday(date) { return "Yesterday" }
         return date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
