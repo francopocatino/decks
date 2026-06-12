@@ -5,24 +5,15 @@ struct DailyView: View {
     @Environment(DecksStore.self) private var store
     @Environment(IdentityStore.self) private var identity
     let slug: String
-    @State private var preview = false
     @State private var working = false
     @State private var aiError: String?
+    @State private var editor = MarkdownEditorController()
+    @AppStorage(Pref.markdownToolbar) private var showToolbar = true
 
     var body: some View {
         VStack(spacing: 0) {
             header
-            if preview {
-                ScrollView {
-                    MarkdownView(text: store.daily(slug))
-                        .padding(16)
-                }
-            } else {
-                TextEditor(text: dailyBinding)
-                    .font(.system(.body, design: .monospaced))
-                    .scrollContentBackground(.hidden)
-                    .padding(16)
-            }
+            MarkdownEditor(text: dailyBinding, controller: editor)
         }
         .alert("Couldn't draft", isPresented: aiErrorBinding) {
             Button("OK", role: .cancel) {}
@@ -36,9 +27,10 @@ struct DailyView: View {
             Button {
                 store.appendDailyEntry(to: slug)
             } label: {
-                Label("Today", systemImage: "calendar.badge.plus")
+                Image(systemName: "calendar.badge.plus")
             }
             .buttonStyle(.borderless)
+            .help("Start today's entry")
 
             if DeckAssistant.hasBackend(for: slug, identity: identity) {
                 Button(action: draftToday) {
@@ -50,29 +42,35 @@ struct DailyView: View {
                 }
                 .buttonStyle(.borderless)
                 .disabled(working)
-                .help("Draft today's entry with AI")
+                .help("Draft today's entry with AI from open to-dos and notes")
+            }
+
+            if showToolbar {
+                Divider().frame(height: 14)
+                MarkdownFormatButtons(controller: editor)
             }
 
             Spacer()
 
             if !store.daily(slug).isEmpty {
                 Button(action: copyToday) {
-                    Label("Copy", systemImage: "doc.on.doc")
+                    Image(systemName: "doc.on.doc")
                 }
                 .buttonStyle(.borderless)
                 .help("Copy today's entry to the clipboard")
             }
 
-            Picker("", selection: $preview) {
-                Image(systemName: "pencil").tag(false)
-                Image(systemName: "eye").tag(true)
+            Button {
+                showToolbar.toggle()
+            } label: {
+                Image(systemName: "textformat")
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .fixedSize()
+            .buttonStyle(.borderless)
+            .foregroundStyle(showToolbar ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+            .help(showToolbar ? "Hide formatting buttons" : "Show formatting buttons")
         }
         .padding(.horizontal, 16)
-        .padding(.top, 8)
+        .padding(.vertical, 8)
     }
 
     private var dailyBinding: Binding<String> {

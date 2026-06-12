@@ -4,24 +4,15 @@ struct NotesView: View {
     @Environment(DecksStore.self) private var store
     @Environment(IdentityStore.self) private var identity
     let slug: String
-    @State private var preview = false
     @State private var working = false
     @State private var aiError: String?
+    @State private var editor = MarkdownEditorController()
+    @AppStorage(Pref.markdownToolbar) private var showToolbar = true
 
     var body: some View {
         VStack(spacing: 0) {
             header
-            if preview {
-                ScrollView {
-                    MarkdownView(text: store.notes(slug))
-                        .padding(16)
-                }
-            } else {
-                TextEditor(text: notesBinding)
-                    .font(.system(.body, design: .monospaced))
-                    .scrollContentBackground(.hidden)
-                    .padding(16)
-            }
+            MarkdownEditor(text: notesBinding, controller: editor)
         }
         .alert("Couldn't polish", isPresented: aiErrorBinding) {
             Button("OK", role: .cancel) {}
@@ -43,18 +34,26 @@ struct NotesView: View {
                 .buttonStyle(.borderless)
                 .disabled(working)
                 .help("Rewrite these notes cleaner with AI")
+
+                if showToolbar {
+                    Divider().frame(height: 14)
+                }
+            }
+            if showToolbar {
+                MarkdownFormatButtons(controller: editor)
             }
             Spacer()
-            Picker("", selection: $preview) {
-                Image(systemName: "pencil").tag(false)
-                Image(systemName: "eye").tag(true)
+            Button {
+                showToolbar.toggle()
+            } label: {
+                Image(systemName: "textformat")
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .fixedSize()
+            .buttonStyle(.borderless)
+            .foregroundStyle(showToolbar ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+            .help(showToolbar ? "Hide formatting buttons" : "Show formatting buttons")
         }
         .padding(.horizontal, 16)
-        .padding(.top, 8)
+        .padding(.vertical, 8)
     }
 
     private var notesBinding: Binding<String> {
