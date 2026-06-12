@@ -88,6 +88,7 @@ struct QuickCaptureView: View {
             .padding(.vertical, 10)
         }
         .frame(width: 400)
+        .tint(selectedDeck.flatMap { store.accentTint(for: $0) } ?? .accentColor)
         .onAppear {
             if slug == nil || !store.visibleDecks.contains(where: { $0.slug == slug }) {
                 slug = store.activeSlug ?? store.visibleDecks.first?.slug

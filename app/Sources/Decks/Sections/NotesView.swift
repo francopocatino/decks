@@ -12,7 +12,7 @@ struct NotesView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
-            MarkdownEditor(text: notesBinding, controller: editor)
+            MarkdownEditor(text: notesBinding, controller: editor, accent: accent)
         }
         .alert("Couldn't polish", isPresented: aiErrorBinding) {
             Button("OK", role: .cancel) {}
@@ -54,6 +54,10 @@ struct NotesView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
+    }
+
+    private var accent: NSColor {
+        store.deck(slug).map { store.accentNSColor(for: $0) } ?? .controlAccentColor
     }
 
     private var notesBinding: Binding<String> {

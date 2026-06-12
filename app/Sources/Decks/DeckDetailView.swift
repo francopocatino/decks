@@ -14,6 +14,7 @@ struct DeckDetailView: View {
 
     var body: some View {
         let sections = leaves(layout.root)
+        let accent = store.accentTint(for: deck)
         return PaneTreeView(
             slug: deck.slug,
             node: layout.root,
@@ -22,6 +23,18 @@ struct DeckDetailView: View {
         ) { newRoot in
             layout.root = newRoot
             store.setLayout(layout, for: deck.slug)
+        }
+        .tint(accent ?? .accentColor)
+        .background(alignment: .top) {
+            // A whisper of the deck's color so each context has a climate.
+            if let accent {
+                LinearGradient(
+                    colors: [accent.opacity(0.09), .clear],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea()
+            }
         }
         .navigationTitle(deck.name)
         .toolbar {
