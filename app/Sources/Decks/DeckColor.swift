@@ -41,6 +41,19 @@ extension Deck {
     }
 }
 
+@MainActor
+extension DecksStore {
+    // Family accent as concrete colors; nil when the deck has no color of
+    // its own or inherited, so callers can fall back to system defaults.
+    func accentTint(for deck: Deck) -> Color? {
+        accent(for: deck).flatMap { DeckColor(rawValue: $0)?.color }
+    }
+
+    func accentNSColor(for deck: Deck) -> NSColor {
+        accent(for: deck).flatMap { DeckColor(rawValue: $0)?.nsColor } ?? .controlAccentColor
+    }
+}
+
 // Every deck gets a mark: a filled dot for top-level decks, a ring for
 // sub-decks (in the parent's color when they have none of their own).
 // Drawn as a non-template NSImage because AppKit menus drop SwiftUI shapes

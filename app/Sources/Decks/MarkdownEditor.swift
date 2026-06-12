@@ -57,6 +57,7 @@ final class MarkdownEditorController {
 struct MarkdownEditor: NSViewRepresentable {
     @Binding var text: String
     let controller: MarkdownEditorController
+    var accent: NSColor = .controlAccentColor
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -77,7 +78,7 @@ struct MarkdownEditor: NSViewRepresentable {
         scroll.drawsBackground = false
         textView.string = text
         controller.textView = textView
-        MarkdownStyler.style(textView)
+        MarkdownStyler.style(textView, accent: accent)
         return scroll
     }
 
@@ -90,7 +91,7 @@ struct MarkdownEditor: NSViewRepresentable {
             textView.string = text
             let length = (text as NSString).length
             textView.setSelectedRange(NSRange(location: min(selection.location, length), length: 0))
-            MarkdownStyler.style(textView)
+            MarkdownStyler.style(textView, accent: accent)
         }
     }
 
@@ -105,21 +106,21 @@ struct MarkdownEditor: NSViewRepresentable {
         func textDidChange(_ notification: Notification) {
             guard let textView = notification.object as? NSTextView else { return }
             parent.text = textView.string
-            MarkdownStyler.style(textView)
+            MarkdownStyler.style(textView, accent: parent.accent)
         }
 
         // Concealed syntax reveals on the caret's line, so restyle as the
         // selection moves between lines.
         func textViewDidChangeSelection(_ notification: Notification) {
             guard let textView = notification.object as? NSTextView else { return }
-            MarkdownStyler.style(textView)
+            MarkdownStyler.style(textView, accent: parent.accent)
         }
     }
 }
 
 enum MarkdownStyler {
     @MainActor
-    static func style(_ textView: NSTextView) {
+    static func style(_ textView: NSTextView, accent: NSColor = .controlAccentColor) {
         // Restyling during dead-key/IME composition (´ + e) breaks it.
         guard !textView.hasMarkedText(), let storage = textView.textStorage else { return }
         let string = storage.string as NSString
@@ -173,7 +174,7 @@ enum MarkdownStyler {
             conceal(NSRange(location: match.range.location + match.range.length - 1, length: 1), near: match.range)
         }
         apply(#"^([-*])\s"#, to: storage) { match in
-            storage.addAttribute(.foregroundColor, value: NSColor.controlAccentColor, range: match.range(at: 1))
+            storage.addAttribute(.foregroundColor, value: accent, range: match.range(at: 1))
         }
         apply(#"^>\s.*$"#, to: storage) { match in
             storage.addAttribute(.foregroundColor, value: NSColor.secondaryLabelColor, range: match.range)

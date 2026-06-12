@@ -13,7 +13,7 @@ struct DailyView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
-            MarkdownEditor(text: dailyBinding, controller: editor)
+            MarkdownEditor(text: dailyBinding, controller: editor, accent: accent)
         }
         .alert("Couldn't draft", isPresented: aiErrorBinding) {
             Button("OK", role: .cancel) {}
@@ -71,6 +71,10 @@ struct DailyView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
+    }
+
+    private var accent: NSColor {
+        store.deck(slug).map { store.accentNSColor(for: $0) } ?? .controlAccentColor
     }
 
     private var dailyBinding: Binding<String> {
