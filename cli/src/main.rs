@@ -334,7 +334,7 @@ fn hook_install() {
     }
     match serde_json::to_string_pretty(&root) {
         Ok(json) => {
-            let _ = fs::write(&path, json);
+            write_atomic(&path, &json);
             println!("installed the worklog hook in {}", path.display());
         }
         Err(error) => eprintln!("{error}"),
@@ -364,7 +364,7 @@ fn hook_uninstall() {
 
     if removed {
         if let Ok(json) = serde_json::to_string_pretty(&root) {
-            let _ = fs::write(&path, json);
+            write_atomic(&path, &json);
         }
         println!("removed the worklog hook");
     } else {
@@ -727,7 +727,7 @@ fn open(slug: &str) {
         .unwrap_or_else(|| serde_json::json!({}));
     state["active"] = serde_json::Value::String(slug.to_string());
     if let Ok(json) = serde_json::to_string_pretty(&state) {
-        let _ = fs::write(path, json);
+        write_atomic(&path, &json);
     }
 }
 
@@ -756,7 +756,7 @@ fn new(name: String) {
         color: None,
     };
     if let Ok(json) = serde_json::to_string_pretty(&deck) {
-        let _ = fs::write(dir.join("deck.json"), json);
+        write_atomic(&dir.join("deck.json"), &json);
     }
 }
 
@@ -823,7 +823,7 @@ fn note(slug: &str, text: String) {
     }
     current.push_str(text);
     current.push('\n');
-    let _ = fs::write(path, current);
+    write_atomic(&path, &current);
 }
 
 fn daily(slug: &str, text: String) {
@@ -843,7 +843,7 @@ fn daily(slug: &str, text: String) {
     } else {
         format!("{header}{text}\n\n{current}")
     };
-    let _ = fs::write(path, next);
+    write_atomic(&path, &next);
 }
 
 fn set_daily(slug: &str, text: String) {
@@ -851,7 +851,16 @@ fn set_daily(slug: &str, text: String) {
     if !body.is_empty() && !body.ends_with('\n') {
         body.push('\n');
     }
-    let _ = fs::write(root().join(slug).join("daily.md"), body);
+    write_atomic(&root().join(slug).join("daily.md"), &body);
+}
+
+// Data files are read by the app on a 1.5s poll; a plain fs::write can be
+// caught half-written and backed up as .corrupt. Write-then-rename is atomic.
+fn write_atomic(path: &Path, contents: &str) {
+    let tmp = PathBuf::from(format!("{}.tmp", path.display()));
+    if fs::write(&tmp, contents).is_ok() && fs::rename(&tmp, path).is_err() {
+        let _ = fs::remove_file(&tmp);
+    }
 }
 
 fn root() -> PathBuf {
@@ -925,7 +934,7 @@ fn read_order() -> Vec<String> {
 
 fn write_order(slugs: &[String]) {
     if let Ok(json) = serde_json::to_string_pretty(slugs) {
-        let _ = fs::write(root().join("order.json"), json);
+        write_atomic(&root().join("order.json"), &json);
     }
 }
 
@@ -949,13 +958,13 @@ fn read_text(slug: &str, file: &str) -> String {
 
 fn write_todos(slug: &str, todos: &[Todo]) {
     if let Ok(json) = serde_json::to_string_pretty(todos) {
-        let _ = fs::write(root().join(slug).join("todos.json"), json);
+        write_atomic(&root().join(slug).join("todos.json"), &json);
     }
 }
 
 fn write_links(slug: &str, links: &[Link]) {
     if let Ok(json) = serde_json::to_string_pretty(links) {
-        let _ = fs::write(root().join(slug).join("links.json"), json);
+        write_atomic(&root().join(slug).join("links.json"), &json);
     }
 }
 
@@ -1046,7 +1055,7 @@ fn delete(slug: &str) {
     {
         state["active"] = serde_json::Value::Null;
         if let Ok(json) = serde_json::to_string_pretty(&state) {
-            let _ = fs::write(&state_path, json);
+            write_atomic(&state_path, &json);
         }
     }
 }
@@ -1059,7 +1068,7 @@ fn read_deck(slug: &str) -> Option<Deck> {
 
 fn write_deck(deck: &Deck) {
     if let Ok(json) = serde_json::to_string_pretty(deck) {
-        let _ = fs::write(root().join(&deck.slug).join("deck.json"), json);
+        write_atomic(&root().join(&deck.slug).join("deck.json"), &json);
     }
 }
 

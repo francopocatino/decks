@@ -39,7 +39,9 @@ them without extra work.
 ```
 
 `doneAt` is written only when the item is done. `due` is written only when the
-item has a due date.
+item has a due date. Due dates sync with Apple Reminders using its floating
+wall-clock semantics: after a timezone change the next sync re-anchors `due`
+to the same local time, matching what the Reminders app shows.
 
 `reminderID` is written only on decks that sync with Apple Reminders; it links
 the to-do to its reminder. Preserve it when rewriting the file. The app keeps

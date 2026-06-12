@@ -2,6 +2,19 @@ import EventKit
 import Foundation
 import Observation
 
+// Sync state lives next to the deck (reminders-sync.json): the linked list's
+// identifier plus the per-reminder snapshot of the last successful sync. The
+// engine is the only writer, so nothing the Settings form saves can clobber it.
+struct RemindersSyncState: Codable {
+    var calendarID: String?
+    var items: [String: RemindersMerge.Snapshot]
+
+    init(calendarID: String? = nil, items: [String: RemindersMerge.Snapshot] = [:]) {
+        self.calendarID = calendarID
+        self.items = items
+    }
+}
+
 @MainActor
 @Observable
 final class RemindersSyncEngine {
@@ -10,7 +23,7 @@ final class RemindersSyncEngine {
     @ObservationIgnored private let eventStore = EKEventStore()
     @ObservationIgnored private var dirty = true
     @ObservationIgnored private var syncing = false
-    @ObservationIgnored private var lastSync = Date.distantPast
+    @ObservationIgnored private var throttle = Throttle(30)
 
     init(store: DecksStore, identity: IdentityStore) {
         self.store = store
@@ -40,39 +53,42 @@ final class RemindersSyncEngine {
 
     func tick() async {
         guard !syncing else { return }
-        guard dirty || Date().timeIntervalSince(lastSync) > 5 else { return }
+        let due = throttle.ready()
+        guard dirty || due else { return }
         guard Self.isAuthorized() else { return }
         syncing = true
         defer { syncing = false }
         dirty = false
-        lastSync = Date()
         for deck in store.visibleDecks where identity.profile(deck.slug).remindersSync == true {
             await sync(deck)
         }
     }
 
+    // The deck is being deleted: remove its Reminders list so it doesn't
+    // get adopted (old reminders included) by a future same-named deck.
+    func deckRemoved(_ slug: String) {
+        guard Self.isAuthorized() else { return }
+        let state = Self.readState(Self.stateURL(slug))
+        guard let id = state.calendarID, let calendar = eventStore.calendar(withIdentifier: id) else { return }
+        try? eventStore.removeCalendar(calendar, commit: true)
+    }
+
     private func sync(_ deck: Deck) async {
-        guard let calendar = ensureCalendar(for: deck) else { return }
-        let reminders = await fetchReminders(in: calendar)
-        let remotes = reminders.compactMap { reminder -> RemindersMerge.Remote? in
-            let text = (reminder.title ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !text.isEmpty else { return nil }
-            return RemindersMerge.Remote(
-                id: reminder.calendarItemIdentifier,
-                text: text,
-                done: reminder.isCompleted,
-                completedAt: reminder.completionDate,
-                due: reminder.dueDateComponents.flatMap { Calendar.current.date(from: $0) }
-            )
-        }
+        let stateURL = Self.stateURL(deck.slug)
+        var state = Self.readState(stateURL)
+        guard let calendar = ensureCalendar(for: deck, state: &state) else { return }
 
-        let snapshotURL = Storage.deckDirectory(deck.slug).appendingPathComponent("reminders-sync.json")
-        let snapshot = Storage.readJSON([String: RemindersMerge.Snapshot].self, at: snapshotURL) ?? [:]
-        var plan = RemindersMerge.plan(todos: store.todos(deck.slug), remotes: remotes, snapshot: snapshot)
+        let remotes = await fetchRemotes(in: calendar)
 
-        let remindersByID = Dictionary(reminders.map { ($0.calendarItemIdentifier, $0) }) { first, _ in first }
+        // Re-read disk before planning so a CLI write during the await above
+        // is merged instead of overwritten. Everything below is synchronous.
+        store.reloadIfChanged()
+        guard store.deck(deck.slug) != nil else { return }
+        let todos = store.todos(deck.slug)
+        var plan = RemindersMerge.plan(todos: todos, remotes: remotes, snapshot: state.items)
+
         for update in plan.updateRemote {
-            guard let reminder = remindersByID[update.id] else { continue }
+            guard let reminder = eventStore.calendarItem(withIdentifier: update.id) as? EKReminder else { continue }
             reminder.title = update.text
             reminder.isCompleted = update.done
             if update.done { reminder.completionDate = update.completedAt ?? Date() }
@@ -81,7 +97,7 @@ final class RemindersSyncEngine {
             try? eventStore.save(reminder, commit: false)
         }
         for id in plan.deleteRemote {
-            guard let reminder = remindersByID[id] else { continue }
+            guard let reminder = eventStore.calendarItem(withIdentifier: id) as? EKReminder else { continue }
             try? eventStore.remove(reminder, commit: false)
         }
         for todoID in plan.createRemote {
@@ -102,11 +118,13 @@ final class RemindersSyncEngine {
         }
         try? eventStore.commit()
 
-        if plan.todos != store.todos(deck.slug) {
+        if plan.todos != todos {
             store.replaceTodos(plan.todos, for: deck.slug)
         }
-        if plan.snapshot != snapshot {
-            Storage.writeJSON(plan.snapshot, to: snapshotURL)
+        if plan.snapshot != state.items || state.calendarID != calendar.calendarIdentifier {
+            state.items = plan.snapshot
+            state.calendarID = calendar.calendarIdentifier
+            Storage.writeJSON(state, to: stateURL)
         }
     }
 
@@ -117,10 +135,16 @@ final class RemindersSyncEngine {
         reminder.alarms = due.map { [EKAlarm(absoluteDate: $0)] }
     }
 
-    private func ensureCalendar(for deck: Deck) -> EKCalendar? {
-        var profile = identity.profile(deck.slug)
-        if let id = profile.remindersCalendarID, let calendar = eventStore.calendar(withIdentifier: id) {
-            return calendar
+    private func ensureCalendar(for deck: Deck, state: inout RemindersSyncState) -> EKCalendar? {
+        if let id = state.calendarID {
+            if let calendar = eventStore.calendar(withIdentifier: id) {
+                return calendar
+            }
+            // The linked list is gone (deleted or recreated in Reminders).
+            // Re-link instead of letting the snapshot delete every todo:
+            // with an empty snapshot the merge recreates the reminders.
+            state.calendarID = nil
+            state.items = [:]
         }
         let calendar: EKCalendar
         if let existing = eventStore.calendars(for: .reminder).first(where: { $0.title == deck.name }) {
@@ -135,19 +159,50 @@ final class RemindersSyncEngine {
             created.source = source
             guard (try? eventStore.saveCalendar(created, commit: true)) != nil else { return nil }
             calendar = created
+            // A brand-new list has synced nothing; a stale snapshot here
+            // would read as mass remote deletion.
+            state.items = [:]
         }
-        profile.remindersCalendarID = calendar.calendarIdentifier
-        identity.saveProfile(profile, for: deck.slug)
+        state.calendarID = calendar.calendarIdentifier
         return calendar
     }
 
-    private func fetchReminders(in calendar: EKCalendar) async -> [EKReminder] {
+    // Extract plain values inside the callback: one fetch, no per-item
+    // EventKit lookups, nothing non-Sendable crossing the continuation.
+    private func fetchRemotes(in calendar: EKCalendar) async -> [RemindersMerge.Remote] {
         let predicate = eventStore.predicateForReminders(in: [calendar])
-        let ids: [String] = await withCheckedContinuation { continuation in
+        return await withCheckedContinuation { continuation in
             eventStore.fetchReminders(matching: predicate) { reminders in
-                continuation.resume(returning: (reminders ?? []).map(\.calendarItemIdentifier))
+                let remotes = (reminders ?? []).compactMap { reminder -> RemindersMerge.Remote? in
+                    let text = (reminder.title ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !text.isEmpty else { return nil }
+                    return RemindersMerge.Remote(
+                        id: reminder.calendarItemIdentifier,
+                        text: text,
+                        done: reminder.isCompleted,
+                        completedAt: reminder.completionDate,
+                        due: reminder.dueDateComponents.flatMap { Calendar.current.date(from: $0) }
+                    )
+                }
+                continuation.resume(returning: remotes)
             }
         }
-        return ids.compactMap { eventStore.calendarItem(withIdentifier: $0) as? EKReminder }
+    }
+
+    private static func stateURL(_ slug: String) -> URL {
+        Storage.deckDirectory(slug).appendingPathComponent("reminders-sync.json")
+    }
+
+    // Reads the current shape, falling back to the legacy bare-snapshot
+    // dictionary without tripping Storage's corrupt-file backup.
+    private static func readState(_ url: URL) -> RemindersSyncState {
+        guard let data = try? Data(contentsOf: url) else { return RemindersSyncState() }
+        if let state = try? Storage.decoder.decode(RemindersSyncState.self, from: data) {
+            return state
+        }
+        if let legacy = try? Storage.decoder.decode([String: RemindersMerge.Snapshot].self, from: data) {
+            return RemindersSyncState(items: legacy)
+        }
+        return RemindersSyncState()
     }
 }

@@ -18,19 +18,27 @@ struct DecksApp: App {
     @State private var hotkey = HotkeyManager()
     @State private var capturePanel: QuickCapturePanel
     @AppStorage("appearance") private var appearance: AppAppearance = .system
-    @AppStorage("captureHotkey") private var captureHotkey: HotkeyOption = .ctrlOptSpace
+    @AppStorage(Pref.captureHotkey) private var captureHotkey: HotkeyOption = .ctrlOptSpace
 
     init() {
         let store = DecksStore()
         let identity = IdentityStore()
+        let reminders = RemindersSyncEngine(store: store, identity: identity)
+        let tracker = TimeTrackingEngine(store: store)
+        let spotlight = SpotlightIndexer(store: store)
         _store = State(initialValue: store)
         _identity = State(initialValue: identity)
-        _reminders = State(initialValue: RemindersSyncEngine(store: store, identity: identity))
+        _reminders = State(initialValue: reminders)
         _notifications = State(initialValue: NotificationScheduler(store: store, identity: identity))
-        _tracker = State(initialValue: TimeTrackingEngine(store: store))
-        _spotlight = State(initialValue: SpotlightIndexer(store: store))
+        _tracker = State(initialValue: tracker)
+        _spotlight = State(initialValue: spotlight)
         _mirror = State(initialValue: CloudMirrorEngine(store: store))
         _capturePanel = State(initialValue: QuickCapturePanel(store: store))
+        store.onDeckRemoved = { slug in
+            reminders.deckRemoved(slug)
+            tracker.deckRemoved(slug)
+            spotlight.deckRemoved(slug)
+        }
     }
 
     var body: some Scene {
@@ -85,6 +93,7 @@ struct DecksApp: App {
                 .environment(identity)
                 .environment(store)
                 .environment(updates)
+                .environment(hotkey)
         }
     }
 }

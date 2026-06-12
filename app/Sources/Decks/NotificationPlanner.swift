@@ -23,9 +23,11 @@ enum NotificationPlanner {
         var planned: [PlannedNotification] = []
         var seen: Set<String> = []
 
+        // Meetings already inside the lead window are still planned (with
+        // their past fire date); the scheduler delivers those immediately.
         for meeting in meetings {
             let fireDate = meeting.start.addingTimeInterval(-Double(leadMinutes) * 60)
-            guard fireDate > now, seen.insert(meeting.id).inserted else { continue }
+            guard meeting.start > now, seen.insert(meeting.id).inserted else { continue }
             planned.append(
                 PlannedNotification(
                     id: "meeting-\(meeting.id)",

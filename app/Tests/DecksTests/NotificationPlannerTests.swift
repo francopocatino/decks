@@ -30,9 +30,20 @@ final class NotificationPlannerTests: XCTestCase {
         XCTAssertEqual(planned[0].id, "meeting-standup")
     }
 
-    func testMeetingAlreadyInsideLeadWindowIsSkipped() {
+    func testMeetingInsideLeadWindowIsStillPlannedWithPastFireDate() {
         let planned = NotificationPlanner.plan(
             meetings: [meeting("imminent", startsIn: 1)],
+            todos: [],
+            leadMinutes: 5,
+            now: now
+        )
+        XCTAssertEqual(planned.count, 1)
+        XCTAssertLessThan(planned[0].fireDate, now)
+    }
+
+    func testStartedMeetingIsSkipped() {
+        let planned = NotificationPlanner.plan(
+            meetings: [meeting("running", startsIn: -1)],
             todos: [],
             leadMinutes: 5,
             now: now

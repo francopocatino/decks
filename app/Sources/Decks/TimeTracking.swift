@@ -20,11 +20,22 @@ struct TimeLedger: Codable, Hashable {
         days.reduce(0) { $0 + seconds(on: $1) }
     }
 
-    static func day(_ date: Date) -> String {
+    // DateFormatter is thread-safe for formatting on modern macOS and this
+    // one is never mutated after creation; cached because day() sits on the
+    // 1.5s tick path.
+    nonisolated(unsafe) private static let dayFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: date)
+        return formatter
+    }()
+
+    static func day(_ date: Date) -> String {
+        dayFormatter.string(from: date)
+    }
+
+    static func date(from day: String) -> Date? {
+        dayFormatter.date(from: day)
     }
 
     static func recentDays(_ count: Int, endingAt date: Date = Date()) -> [String] {
@@ -67,6 +78,13 @@ final class TimeTrackingEngine {
         let loaded = Storage.readJSON(TimeLedger.self, at: Self.url(slug)) ?? TimeLedger()
         ledgers[slug] = loaded
         return loaded
+    }
+
+    // Without this, recreating a deck with the same slug resurrects the
+    // deleted deck's history from the in-memory cache.
+    func deckRemoved(_ slug: String) {
+        ledgers[slug] = nil
+        dirty.remove(slug)
     }
 
     func tick(now: Date = Date()) {

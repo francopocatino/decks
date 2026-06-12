@@ -21,6 +21,7 @@ final class DecksStore {
     private var lastOrderSignature = 0
     private var lastStateSignature = 0
     @ObservationIgnored var onTodosChanged: ((String) -> Void)?
+    @ObservationIgnored var onDeckRemoved: ((String) -> Void)?
 
     init() {
         Storage.ensureDirectory(Storage.root)
@@ -149,6 +150,7 @@ final class DecksStore {
     }
 
     func deleteDeck(_ slug: String) {
+        onDeckRemoved?(slug)
         for index in decks.indices where decks[index].parent == slug {
             decks[index].parent = nil
             persist(decks[index])
@@ -203,9 +205,7 @@ final class DecksStore {
 
     func setDue(_ due: Date?, for id: UUID, in slug: String) {
         guard var list = todosByDeck[slug], let index = list.firstIndex(where: { $0.id == id }) else { return }
-        let truncated = due.map { date in
-            Calendar.current.date(from: Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: date)) ?? date
-        }
+        let truncated = due.map { $0.truncatedToMinute() }
         guard list[index].due != truncated else { return }
         list[index].due = truncated
         todosByDeck[slug] = list
@@ -343,7 +343,10 @@ final class DecksStore {
 
         decks = readDecks()
         for slug in changed { loadContent(slug) }
-        for slug in removed { dropContent(slug) }
+        for slug in removed {
+            dropContent(slug)
+            onDeckRemoved?(slug)
+        }
         if let active = activeSlug, !decks.contains(where: { $0.slug == active }) {
             activeSlug = visibleDecks.first?.slug
             persistActive()
@@ -425,6 +428,7 @@ final class DecksStore {
     private func loadContent(_ slug: String) {
         let directory = Storage.deckDirectory(slug)
         todosByDeck[slug] = Storage.readJSON([Todo].self, at: directory.appendingPathComponent("todos.json")) ?? []
+        onTodosChanged?(slug)
         linksByDeck[slug] = Storage.readJSON([Link].self, at: directory.appendingPathComponent("links.json")) ?? []
         if saveTasks["daily-\(slug)"] == nil {
             dailyByDeck[slug] = Storage.readString(directory.appendingPathComponent("daily.md"))

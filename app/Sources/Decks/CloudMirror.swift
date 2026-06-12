@@ -48,7 +48,7 @@ enum DeckDigest {
 final class CloudMirrorEngine {
     @ObservationIgnored private let store: DecksStore
     @ObservationIgnored private var written: [String: Int] = [:]
-    @ObservationIgnored private var lastRun = Date.distantPast
+    @ObservationIgnored private var throttle = Throttle(30)
 
     init(store: DecksStore) {
         self.store = store
@@ -64,9 +64,8 @@ final class CloudMirrorEngine {
     }
 
     func tick() {
-        guard UserDefaults.standard.bool(forKey: "icloudMirror"), Self.isAvailable else { return }
-        guard Date().timeIntervalSince(lastRun) > 30 else { return }
-        lastRun = Date()
+        guard UserDefaults.standard.bool(forKey: Pref.icloudMirror), Self.isAvailable else { return }
+        guard throttle.ready() else { return }
         Storage.ensureDirectory(Self.folder)
 
         var current: Set<String> = []
@@ -83,16 +82,21 @@ final class CloudMirrorEngine {
             var hasher = Hasher()
             hasher.combine(digest)
             let signature = hasher.finalize()
-            guard written[name] != signature else { continue }
+            let url = Self.folder.appendingPathComponent(name)
+            guard written[name] != signature || !FileManager.default.fileExists(atPath: url.path) else { continue }
             written[name] = signature
-            Storage.writeString(digest, to: Self.folder.appendingPathComponent(name))
+            Storage.writeString(digest, to: url)
         }
 
-        // The Decks folder is app-managed: drop digests of removed decks.
-        let existing = (try? FileManager.default.contentsOfDirectory(at: Self.folder, includingPropertiesForKeys: nil)) ?? []
-        for file in existing where file.pathExtension == "md" && !current.contains(file.lastPathComponent) {
-            try? FileManager.default.removeItem(at: file)
-            written[file.lastPathComponent] = nil
+        // Prune only digests this app wrote (tracked in the manifest):
+        // anything the user drops into the folder is left alone.
+        let manifest = Set(UserDefaults.standard.stringArray(forKey: Pref.cloudMirrorFiles) ?? [])
+        for name in manifest.subtracting(current) {
+            try? FileManager.default.removeItem(at: Self.folder.appendingPathComponent(name))
+            written[name] = nil
+        }
+        if manifest != current {
+            UserDefaults.standard.set(Array(current).sorted(), forKey: Pref.cloudMirrorFiles)
         }
     }
 }

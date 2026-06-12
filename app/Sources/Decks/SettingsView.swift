@@ -61,12 +61,14 @@ struct SettingsView: View {
 
 struct GeneralSettingsView: View {
     @AppStorage("appearance") private var appearance: AppAppearance = .system
-    @AppStorage("captureHotkey") private var captureHotkey: HotkeyOption = .ctrlOptSpace
-    @AppStorage("meetingAlerts") private var meetingAlerts = false
-    @AppStorage("meetingAlertLead") private var meetingAlertLead = 2
-    @AppStorage("dueAlerts") private var dueAlerts = false
-    @AppStorage("icloudMirror") private var icloudMirror = false
+    @AppStorage(Pref.captureHotkey) private var captureHotkey: HotkeyOption = .ctrlOptSpace
+    @AppStorage(Pref.meetingAlerts) private var meetingAlerts = false
+    @AppStorage(Pref.meetingAlertLead) private var meetingAlertLead = 2
+    @AppStorage(Pref.dueAlerts) private var dueAlerts = false
+    @AppStorage(Pref.icloudMirror) private var icloudMirror = false
+    @State private var notificationsDenied = false
     @Environment(UpdateChecker.self) private var updates
+    @Environment(HotkeyManager.self) private var hotkey
 
     var body: some View {
         Form {
@@ -84,6 +86,11 @@ struct GeneralSettingsView: View {
                         Text(option.label).tag(option)
                     }
                 }
+                if hotkey.registrationFailed {
+                    Text("This shortcut couldn't be registered — another app may already be using it. Pick a different one.")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
             } header: {
                 Text("Quick capture")
             } footer: {
@@ -99,6 +106,11 @@ struct GeneralSettingsView: View {
                     }
                 }
                 Toggle("To-do due alerts", isOn: alertsBinding($dueAlerts))
+                if notificationsDenied {
+                    Text("Notifications are off for Decks. Allow them in System Settings → Notifications, then try again.")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
             } header: {
                 Text("Notifications")
             } footer: {
@@ -157,7 +169,9 @@ struct GeneralSettingsView: View {
                     return
                 }
                 Task {
-                    storage.wrappedValue = await NotificationScheduler.requestAccess()
+                    let granted = await NotificationScheduler.requestAccess()
+                    storage.wrappedValue = granted
+                    notificationsDenied = !granted
                 }
             }
         )
