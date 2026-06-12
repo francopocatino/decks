@@ -150,7 +150,7 @@ struct RootView: View {
         Label {
             Text(deck.name)
         } icon: {
-            DeckIcon(deck: deck)
+            DeckIcon(deck: deck, accent: store.accent(for: deck))
         }
         .badge(badge(for: deck))
             .tag(deck.slug)

@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 enum DeckColor: String, CaseIterable, Identifiable {
@@ -18,6 +19,20 @@ enum DeckColor: String, CaseIterable, Identifiable {
         case .pink: .pink
         }
     }
+
+    var nsColor: NSColor {
+        switch self {
+        case .gray: .systemGray
+        case .red: .systemRed
+        case .orange: .systemOrange
+        case .yellow: .systemYellow
+        case .green: .systemGreen
+        case .teal: .systemTeal
+        case .blue: .systemBlue
+        case .purple: .systemPurple
+        case .pink: .systemPink
+        }
+    }
 }
 
 extension Deck {
@@ -26,17 +41,54 @@ extension Deck {
     }
 }
 
+// Every deck gets a mark: a filled dot for top-level decks, a ring for
+// sub-decks (in the parent's color when they have none of their own).
+// Drawn as a non-template NSImage because AppKit menus drop SwiftUI shapes
+// and recolor template symbols — this renders identically in the sidebar,
+// settings and menus.
 struct DeckIcon: View {
     let deck: Deck
+    var accent: String?
+    var indented: Bool
+
+    // `indented` widens sub-deck swatches so menus (which can't indent
+    // items) still show one level of depth; lists indent on their own.
+    init(deck: Deck, accent: String? = nil, indented: Bool = false) {
+        self.deck = deck
+        self.accent = accent ?? deck.color
+        self.indented = indented && deck.parent != nil
+    }
 
     var body: some View {
-        if deck.color != nil {
-            Circle()
-                .fill(deck.accent)
-                .frame(width: 10, height: 10)
-        } else {
-            Image(systemName: deck.isArchived ? "archivebox" : "rectangle.stack")
+        if deck.isArchived {
+            Image(systemName: "archivebox")
                 .foregroundStyle(.secondary)
+        } else {
+            Image(nsImage: Self.swatch(color: nsAccent, filled: deck.parent == nil, indented: indented))
         }
+    }
+
+    private var nsAccent: NSColor {
+        accent.flatMap { DeckColor(rawValue: $0) }?.nsColor ?? .secondaryLabelColor
+    }
+
+    private static func swatch(color: NSColor, filled: Bool, indented: Bool) -> NSImage {
+        let dot: CGFloat = 12
+        let offset: CGFloat = indented ? 14 : 0
+        let image = NSImage(size: NSSize(width: dot + offset, height: dot), flipped: false) { rect in
+            let circle = NSRect(x: rect.minX + offset, y: rect.minY, width: dot, height: dot)
+            let path = NSBezierPath(ovalIn: circle.insetBy(dx: 1.5, dy: 1.5))
+            if filled {
+                color.setFill()
+                path.fill()
+            } else {
+                color.setStroke()
+                path.lineWidth = 1.8
+                path.stroke()
+            }
+            return true
+        }
+        image.isTemplate = false
+        return image
     }
 }

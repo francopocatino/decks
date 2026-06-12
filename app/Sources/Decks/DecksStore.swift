@@ -54,6 +54,11 @@ final class DecksStore {
         visibleDecks.filter { $0.parent == slug }
     }
 
+    // Own color, else the parent's: sub-decks carry their family's color.
+    func accent(for deck: Deck) -> String? {
+        deck.color ?? deck.parent.flatMap { self.deck($0)?.color }
+    }
+
     func canHaveParent(_ slug: String) -> Bool {
         DeckTree.canBecomeChild(slug, in: decks)
     }
