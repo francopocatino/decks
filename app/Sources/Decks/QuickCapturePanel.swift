@@ -23,10 +23,18 @@ final class QuickCapturePanel {
     private func open() {
         let content = QuickCaptureView(focusOnAppear: true) { [weak self] in self?.close() }
             .environment(store)
-        let panel = CapturePanel(contentViewController: NSHostingController(rootView: content))
-        panel.styleMask = [.titled, .fullSizeContentView, .nonactivatingPanel]
-        panel.titleVisibility = .hidden
-        panel.titlebarAppearsTransparent = true
+            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(.separator, lineWidth: 1)
+            }
+        let hosting = NSHostingController(rootView: content)
+        let panel = CapturePanel(contentViewController: hosting)
+        panel.styleMask = [.borderless, .nonactivatingPanel]
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = true
+        hosting.view.layer?.backgroundColor = NSColor.clear.cgColor
         panel.isMovableByWindowBackground = true
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]

@@ -309,7 +309,7 @@ struct DecksSettingsView: View {
         Label {
             Text(deck.name)
         } icon: {
-            DeckIcon(deck: deck)
+            DeckIcon(deck: deck, accent: store.accent(for: deck))
         }
         .tag(deck.slug)
     }
