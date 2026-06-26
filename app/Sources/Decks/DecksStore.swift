@@ -85,6 +85,7 @@ final class DecksStore {
         let directory = Storage.deckDirectory(slug)
         Storage.ensureDirectory(directory)
         Storage.writeJSON(deck, to: directory.appendingPathComponent("deck.json"))
+        stampSignature(for: slug)
         decks = applyOrder(decks + [deck])
         todosByDeck[slug] = []
         linksByDeck[slug] = []
@@ -139,7 +140,7 @@ final class DecksStore {
         decks[index].parent = parent
         persist(decks[index])
         decks = flattened(decks)
-        Storage.writeJSON(decks.map(\.slug), to: orderURL)
+        writeOrder()
     }
 
     func moveDecks(parent: String?, fromOffsets source: IndexSet, toOffset destination: Int) {
@@ -147,7 +148,7 @@ final class DecksStore {
         group.move(fromOffsets: source, toOffset: destination)
         let rest = decks.filter { !($0.parent == parent && !$0.isArchived) }
         decks = flattened(group + rest)
-        Storage.writeJSON(decks.map(\.slug), to: orderURL)
+        writeOrder()
     }
 
     private func flattened(_ all: [Deck]) -> [Deck] {
@@ -164,6 +165,7 @@ final class DecksStore {
         if var order = Storage.readJSON([String].self, at: orderURL), order.contains(slug) {
             order.removeAll { $0 == slug }
             Storage.writeJSON(order, to: orderURL)
+            lastOrderSignature = Self.fileSignature(orderURL)
         }
         todosByDeck[slug] = nil
         linksByDeck[slug] = nil
@@ -171,6 +173,9 @@ final class DecksStore {
         notesByDeck[slug] = nil
         layoutByDeck[slug] = nil
         try? FileManager.default.removeItem(at: Storage.deckDirectory(slug))
+        // The directory is gone; drop its baseline so the next poll doesn't
+        // re-detect the removal and fire onDeckRemoved a second time.
+        lastDeckSignatures[slug] = nil
         if activeSlug == slug {
             activeSlug = visibleDecks.first?.slug
             persistActive()
@@ -229,6 +234,7 @@ final class DecksStore {
 
     private func saveTodos(_ slug: String) {
         Storage.writeJSON(todosByDeck[slug] ?? [], to: Storage.deckDirectory(slug).appendingPathComponent("todos.json"))
+        stampSignature(for: slug)
         onTodosChanged?(slug)
     }
 
@@ -263,6 +269,7 @@ final class DecksStore {
 
     private func saveLinks(_ slug: String) {
         Storage.writeJSON(linksByDeck[slug] ?? [], to: Storage.deckDirectory(slug).appendingPathComponent("links.json"))
+        stampSignature(for: slug)
     }
 
     // MARK: Daily & Notes
@@ -272,7 +279,10 @@ final class DecksStore {
     func setDaily(_ text: String, for slug: String) {
         dailyByDeck[slug] = text
         let url = Storage.deckDirectory(slug).appendingPathComponent("daily.md")
-        scheduleSave("daily-\(slug)") { Storage.writeString(text, to: url) }
+        scheduleSave("daily-\(slug)") { [weak self] in
+            Storage.writeString(text, to: url)
+            self?.stampSignature(for: slug)
+        }
     }
 
     func appendDailyEntry(to slug: String) {
@@ -311,7 +321,10 @@ final class DecksStore {
     func setNotes(_ text: String, for slug: String) {
         notesByDeck[slug] = text
         let url = Storage.deckDirectory(slug).appendingPathComponent("notes.md")
-        scheduleSave("notes-\(slug)") { Storage.writeString(text, to: url) }
+        scheduleSave("notes-\(slug)") { [weak self] in
+            Storage.writeString(text, to: url)
+            self?.stampSignature(for: slug)
+        }
     }
 
     // MARK: Layout
@@ -321,6 +334,7 @@ final class DecksStore {
     func setLayout(_ layout: DeckLayout, for slug: String) {
         layoutByDeck[slug] = layout
         Storage.writeJSON(layout, to: Storage.deckDirectory(slug).appendingPathComponent("layout.json"))
+        stampSignature(for: slug)
     }
 
     // MARK: Loading
@@ -336,21 +350,32 @@ final class DecksStore {
     }
 
     func reloadIfChanged() {
-        adoptExternalState()
+        let stateSignature = Self.fileSignature(stateURL)
+        let stateChanged = stateSignature != lastStateSignature
         let signatures = Self.deckSignatures()
         let orderSignature = Self.fileSignature(orderURL)
-        guard signatures != lastDeckSignatures || orderSignature != lastOrderSignature else { return }
+        let decksChanged = signatures != lastDeckSignatures || orderSignature != lastOrderSignature
+        guard stateChanged || decksChanged else { return }
 
-        let removed = Set(lastDeckSignatures.keys).subtracting(signatures.keys)
-        let changed = signatures.filter { lastDeckSignatures[$0.key] != $0.value }.map(\.key)
-        lastDeckSignatures = signatures
-        lastOrderSignature = orderSignature
+        if decksChanged {
+            let removed = Set(lastDeckSignatures.keys).subtracting(signatures.keys)
+            let changed = signatures.filter { lastDeckSignatures[$0.key] != $0.value }.map(\.key)
+            lastDeckSignatures = signatures
+            lastOrderSignature = orderSignature
 
-        decks = readDecks()
-        for slug in changed { loadContent(slug) }
-        for slug in removed {
-            dropContent(slug)
-            onDeckRemoved?(slug)
+            decks = readDecks()
+            for slug in changed { loadContent(slug) }
+            for slug in removed {
+                dropContent(slug)
+                onDeckRemoved?(slug)
+            }
+        }
+        // Adopt the external active deck after decks are reloaded, so a deck
+        // created and opened in the same poll window is already loaded and gets
+        // selected — the open signal isn't consumed and lost before it exists.
+        if stateChanged {
+            lastStateSignature = stateSignature
+            adoptExternalState()
         }
         if let active = activeSlug, !decks.contains(where: { $0.slug == active }) {
             activeSlug = visibleDecks.first?.slug
@@ -361,9 +386,6 @@ final class DecksStore {
     // The CLI's `decks open` (e.g. from a Focus automation) rewrites
     // state.json; adopt the new active deck when that happens.
     private func adoptExternalState() {
-        let signature = Self.fileSignature(stateURL)
-        guard signature != lastStateSignature else { return }
-        lastStateSignature = signature
         guard let active = Storage.readJSON(State.self, at: stateURL)?.active,
               active != activeSlug,
               decks.contains(where: { $0.slug == active })
@@ -388,26 +410,44 @@ final class DecksStore {
 
         var result: [String: Int] = [:]
         for dir in dirs {
-            guard (try? dir.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true,
-                  let files = try? fm.contentsOfDirectory(
-                      at: dir,
-                      includingPropertiesForKeys: [.contentModificationDateKey]
-                  )
-            else { continue }
-
-            var hasher = Hasher()
-            var isDeck = false
-            for file in files.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
-                if file.pathExtension == "corrupt" { continue }
-                if file.lastPathComponent == "time.json" { continue }
-                if file.lastPathComponent == "deck.json" { isDeck = true }
-                let date = (try? file.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
-                hasher.combine(file.lastPathComponent)
-                hasher.combine(date)
+            if let signature = signature(forDeckAt: dir) {
+                result[dir.lastPathComponent] = signature
             }
-            if isDeck { result[dir.lastPathComponent] = hasher.finalize() }
         }
         return result
+    }
+
+    // The hash of one deck directory (nil if it isn't a deck), excluding
+    // time.json and .corrupt files exactly as deckSignatures does.
+    private static func signature(forDeckAt dir: URL) -> Int? {
+        let fm = FileManager.default
+        guard (try? dir.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true,
+              let files = try? fm.contentsOfDirectory(
+                  at: dir,
+                  includingPropertiesForKeys: [.contentModificationDateKey]
+              )
+        else { return nil }
+
+        var hasher = Hasher()
+        var isDeck = false
+        for file in files.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
+            if file.pathExtension == "corrupt" { continue }
+            if file.lastPathComponent == "time.json" { continue }
+            if file.lastPathComponent == "deck.json" { isDeck = true }
+            let date = (try? file.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+            hasher.combine(file.lastPathComponent)
+            hasher.combine(date)
+        }
+        return isDeck ? hasher.finalize() : nil
+    }
+
+    // After an internal write, fold the deck's new on-disk signature into the
+    // baseline so the next poll doesn't re-read the app's own change (which
+    // would re-run readDecks and re-fire onTodosChanged → a redundant sync).
+    private func stampSignature(for slug: String) {
+        if let signature = Self.signature(forDeckAt: Storage.deckDirectory(slug)) {
+            lastDeckSignatures[slug] = signature
+        }
     }
 
     private static func fileSignature(_ url: URL) -> Int {
@@ -448,10 +488,17 @@ final class DecksStore {
 
     private func persist(_ deck: Deck) {
         Storage.writeJSON(deck, to: Storage.deckDirectory(deck.slug).appendingPathComponent("deck.json"))
+        stampSignature(for: deck.slug)
     }
 
     private func persistActive() {
         Storage.writeJSON(State(active: activeSlug), to: stateURL)
+        lastStateSignature = Self.fileSignature(stateURL)
+    }
+
+    private func writeOrder() {
+        Storage.writeJSON(decks.map(\.slug), to: orderURL)
+        lastOrderSignature = Self.fileSignature(orderURL)
     }
 
     private func scheduleSave(_ key: String, write: @escaping @MainActor () -> Void) {
