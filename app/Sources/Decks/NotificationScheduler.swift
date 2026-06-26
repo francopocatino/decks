@@ -62,7 +62,14 @@ final class NotificationScheduler {
             meetings = await CalendarService.meetings(sources: Array(sources), scope: .today)
         }
         let todos: [(deck: String, todo: Todo)] = dueAlerts
-            ? store.visibleDecks.flatMap { deck in store.todos(deck.slug).map { (deck.name, $0) } }
+            ? store.visibleDecks.flatMap { deck -> [(String, Todo)] in
+                // A todo synced to Reminders already carries its own EKAlarm;
+                // a Decks due alert on top of it would notify twice.
+                let synced = identity.profile(deck.slug).remindersSync == true
+                return store.todos(deck.slug).compactMap { todo in
+                    synced && todo.reminderID != nil ? nil : (deck.name, todo)
+                }
+            }
             : []
 
         let lead = defaults.object(forKey: Pref.meetingAlertLead) as? Int ?? 2
@@ -72,10 +79,21 @@ final class NotificationScheduler {
 
         let center = UNUserNotificationCenter.current()
         center.removeAllPendingNotificationRequests()
+        // Bound the dedup set to the live plan so it can't grow unbounded.
+        submitted.formIntersection(Set(planned.map(\.id)))
+        // Already-shown notifications (kept by Notification Center across
+        // launches) count as submitted, so an immediate item doesn't re-fire
+        // on every relaunch inside its window. Map to ids inside the callback
+        // to keep the non-Sendable UNNotification off the continuation.
+        let delivered: Set<String> = await withCheckedContinuation { continuation in
+            center.getDeliveredNotifications { notifications in
+                continuation.resume(returning: Set(notifications.map(\.request.identifier)))
+            }
+        }
         for item in planned {
             // Past-dated items (already inside the lead window) fire once,
             // immediately; never resubmit them on later plan rebuilds.
-            if item.fireDate <= Date(), submitted.contains(item.id) { continue }
+            if item.fireDate <= Date(), submitted.contains(item.id) || delivered.contains(item.id) { continue }
             submitted.insert(item.id)
             center.add(request(for: item), withCompletionHandler: nil)
         }
