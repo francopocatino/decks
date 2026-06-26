@@ -167,8 +167,61 @@ struct Connector {
     kind: String,
 }
 
+// A slug names a single sub-directory of the decks root. Reject anything that
+// could escape it — path separators, parent/current refs, or an absolute path —
+// before it reaches a filesystem op. Without this, `delete <slug>` and every
+// `root().join(slug)` could be steered outside ~/.decks (e.g. an absolute path
+// or `..`), including through the MCP server an LLM drives.
+fn valid_slug(slug: &str) -> bool {
+    !slug.is_empty()
+        && slug != "."
+        && slug != ".."
+        && !slug.contains('/')
+        && !slug.contains('\\')
+        && !slug.contains('\0')
+        && !Path::new(slug).is_absolute()
+}
+
+fn invalid_slug_in(command: &Command) -> Option<&str> {
+    let slugs: Vec<&str> = match command {
+        Command::Show { slug }
+        | Command::Open { slug }
+        | Command::Add { slug, .. }
+        | Command::Done { slug, .. }
+        | Command::Note { slug, .. }
+        | Command::Daily { slug, .. }
+        | Command::SetDaily { slug, .. }
+        | Command::McpConfig { slug }
+        | Command::Worklog { slug }
+        | Command::Link { slug, .. }
+        | Command::Unlink { slug, .. }
+        | Command::Remove { slug, .. }
+        | Command::Edit { slug, .. }
+        | Command::Rename { slug, .. }
+        | Command::Archive { slug }
+        | Command::Unarchive { slug }
+        | Command::Delete { slug } => vec![slug.as_str()],
+        Command::SetParent { slug, parent } => {
+            if parent == "-" || parent.is_empty() {
+                vec![slug.as_str()]
+            } else {
+                vec![slug.as_str(), parent.as_str()]
+            }
+        }
+        Command::Reorder { slugs } => slugs.iter().map(String::as_str).collect(),
+        Command::List | Command::New { .. } | Command::Hook { .. } | Command::Which { .. } => {
+            vec![]
+        }
+    };
+    slugs.into_iter().find(|slug| !valid_slug(slug))
+}
+
 fn main() {
     let cli = Cli::parse();
+    if let Some(slug) = invalid_slug_in(&cli.command) {
+        eprintln!("invalid deck slug: \"{slug}\"");
+        std::process::exit(2);
+    }
     match cli.command {
         Command::List => list(cli.json),
         Command::Show { slug } => show(&slug, cli.json),
@@ -334,7 +387,7 @@ fn hook_install() {
     }
     match serde_json::to_string_pretty(&root) {
         Ok(json) => {
-            write_atomic(&path, &json);
+            write_atomic_or_exit(&path, &json);
             println!("installed the worklog hook in {}", path.display());
         }
         Err(error) => eprintln!("{error}"),
@@ -364,7 +417,7 @@ fn hook_uninstall() {
 
     if removed {
         if let Ok(json) = serde_json::to_string_pretty(&root) {
-            write_atomic(&path, &json);
+            write_atomic_or_exit(&path, &json);
         }
         println!("removed the worklog hook");
     } else {
@@ -727,7 +780,7 @@ fn open(slug: &str) {
         .unwrap_or_else(|| serde_json::json!({}));
     state["active"] = serde_json::Value::String(slug.to_string());
     if let Ok(json) = serde_json::to_string_pretty(&state) {
-        write_atomic(&path, &json);
+        write_atomic_or_exit(&path, &json);
     }
 }
 
@@ -756,7 +809,7 @@ fn new(name: String) {
         color: None,
     };
     if let Ok(json) = serde_json::to_string_pretty(&deck) {
-        write_atomic(&dir.join("deck.json"), &json);
+        write_atomic_or_exit(&dir.join("deck.json"), &json);
     }
 }
 
@@ -823,7 +876,7 @@ fn note(slug: &str, text: String) {
     }
     current.push_str(text);
     current.push('\n');
-    write_atomic(&path, &current);
+    write_atomic_or_exit(&path, &current);
 }
 
 fn daily(slug: &str, text: String) {
@@ -843,7 +896,7 @@ fn daily(slug: &str, text: String) {
     } else {
         format!("{header}{text}\n\n{current}")
     };
-    write_atomic(&path, &next);
+    write_atomic_or_exit(&path, &next);
 }
 
 fn set_daily(slug: &str, text: String) {
@@ -851,15 +904,27 @@ fn set_daily(slug: &str, text: String) {
     if !body.is_empty() && !body.ends_with('\n') {
         body.push('\n');
     }
-    write_atomic(&root().join(slug).join("daily.md"), &body);
+    write_atomic_or_exit(&root().join(slug).join("daily.md"), &body);
 }
 
 // Data files are read by the app on a 1.5s poll; a plain fs::write can be
 // caught half-written and backed up as .corrupt. Write-then-rename is atomic.
-fn write_atomic(path: &Path, contents: &str) {
+fn write_atomic(path: &Path, contents: &str) -> std::io::Result<()> {
     let tmp = PathBuf::from(format!("{}.tmp", path.display()));
-    if fs::write(&tmp, contents).is_ok() && fs::rename(&tmp, path).is_err() {
+    fs::write(&tmp, contents)?;
+    if let Err(error) = fs::rename(&tmp, path) {
         let _ = fs::remove_file(&tmp);
+        return Err(error);
+    }
+    Ok(())
+}
+
+// Mutating commands exit non-zero on a failed write so the MCP server (which
+// reports success purely on exit status) never claims a write that never landed.
+fn write_atomic_or_exit(path: &Path, contents: &str) {
+    if let Err(error) = write_atomic(path, contents) {
+        eprintln!("failed to write {}: {error}", path.display());
+        std::process::exit(1);
     }
 }
 
@@ -934,7 +999,7 @@ fn read_order() -> Vec<String> {
 
 fn write_order(slugs: &[String]) {
     if let Ok(json) = serde_json::to_string_pretty(slugs) {
-        write_atomic(&root().join("order.json"), &json);
+        write_atomic_or_exit(&root().join("order.json"), &json);
     }
 }
 
@@ -958,13 +1023,13 @@ fn read_text(slug: &str, file: &str) -> String {
 
 fn write_todos(slug: &str, todos: &[Todo]) {
     if let Ok(json) = serde_json::to_string_pretty(todos) {
-        write_atomic(&root().join(slug).join("todos.json"), &json);
+        write_atomic_or_exit(&root().join(slug).join("todos.json"), &json);
     }
 }
 
 fn write_links(slug: &str, links: &[Link]) {
     if let Ok(json) = serde_json::to_string_pretty(links) {
-        write_atomic(&root().join(slug).join("links.json"), &json);
+        write_atomic_or_exit(&root().join(slug).join("links.json"), &json);
     }
 }
 
@@ -1030,6 +1095,17 @@ fn set_archived(slug: &str, archived: bool) {
         Some(mut deck) => {
             deck.archived = archived.then_some(true);
             write_deck(&deck);
+            // Archiving a parent detaches its sub-decks, mirroring the app:
+            // otherwise the children point at an archived parent and render in
+            // no sidebar list (neither top-level nor Archived).
+            if archived {
+                for mut child in read_decks() {
+                    if child.parent.as_deref() == Some(slug) {
+                        child.parent = None;
+                        write_deck(&child);
+                    }
+                }
+            }
         }
         None => eprintln!("no deck \"{slug}\""),
     }
@@ -1055,7 +1131,7 @@ fn delete(slug: &str) {
     {
         state["active"] = serde_json::Value::Null;
         if let Ok(json) = serde_json::to_string_pretty(&state) {
-            write_atomic(&state_path, &json);
+            write_atomic_or_exit(&state_path, &json);
         }
     }
 }
@@ -1068,7 +1144,7 @@ fn read_deck(slug: &str) -> Option<Deck> {
 
 fn write_deck(deck: &Deck) {
     if let Ok(json) = serde_json::to_string_pretty(deck) {
-        write_atomic(&root().join(&deck.slug).join("deck.json"), &json);
+        write_atomic_or_exit(&root().join(&deck.slug).join("deck.json"), &json);
     }
 }
 
@@ -1140,6 +1216,44 @@ mod tests {
     #[test]
     fn percent_encode_escapes_query() {
         assert_eq!(percent_encode("is:pr a b"), "is%3Apr%20a%20b");
+    }
+
+    #[test]
+    fn valid_slug_rejects_path_traversal() {
+        assert!(valid_slug("acme-corp"));
+        assert!(valid_slug("nexus"));
+        assert!(!valid_slug(""));
+        assert!(!valid_slug("."));
+        assert!(!valid_slug(".."));
+        assert!(!valid_slug("../../etc"));
+        assert!(!valid_slug("/Users/franco/important"));
+        assert!(!valid_slug("a/b"));
+        assert!(!valid_slug("a\\b"));
+    }
+
+    #[test]
+    fn invalid_slug_in_flags_bad_commands() {
+        assert!(
+            invalid_slug_in(&Command::Delete {
+                slug: "../x".into()
+            })
+            .is_some()
+        );
+        assert!(invalid_slug_in(&Command::Show { slug: "ok".into() }).is_none());
+        assert!(
+            invalid_slug_in(&Command::SetParent {
+                slug: "ok".into(),
+                parent: "-".into(),
+            })
+            .is_none()
+        );
+        assert!(
+            invalid_slug_in(&Command::SetParent {
+                slug: "ok".into(),
+                parent: "/etc".into(),
+            })
+            .is_some()
+        );
     }
 
     #[test]
