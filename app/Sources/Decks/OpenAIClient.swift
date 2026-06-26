@@ -13,7 +13,7 @@ struct OpenAIClient {
         }
     }
 
-    func reply(system: String, history: [ChatMessage], apiKey: String, model: String) async throws -> String {
+    func reply(system: String, history: [ChatMessage], apiKey: String, model: String) async throws -> AIReply {
         guard let endpoint = URL(string: "https://api.openai.com/v1/chat/completions") else {
             throw ClientError.malformed
         }
@@ -33,9 +33,10 @@ struct OpenAIClient {
         }
         guard
             let decoded = try? JSONDecoder().decode(ResponseBody.self, from: data),
-            let text = decoded.choices.first?.message.content
+            let choice = decoded.choices.first,
+            let text = choice.message.content
         else { throw ClientError.malformed }
-        return text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return AIReply(text: text.trimmingCharacters(in: .whitespacesAndNewlines), truncated: choice.finishReason == "length")
     }
 
     func validate(apiKey: String) async -> Result<Void, ClientError> {
@@ -69,6 +70,12 @@ struct OpenAIClient {
 
         struct Choice: Decodable {
             let message: Message
+            let finishReason: String?
+
+            enum CodingKeys: String, CodingKey {
+                case message
+                case finishReason = "finish_reason"
+            }
         }
 
         struct Message: Decodable {

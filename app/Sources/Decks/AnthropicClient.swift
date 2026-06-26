@@ -13,7 +13,7 @@ struct AnthropicClient {
         }
     }
 
-    func reply(system: String, history: [ChatMessage], apiKey: String, model: String) async throws -> String {
+    func reply(system: String, history: [ChatMessage], apiKey: String, model: String) async throws -> AIReply {
         guard let endpoint = URL(string: "https://api.anthropic.com/v1/messages") else {
             throw ClientError.malformed
         }
@@ -39,10 +39,11 @@ struct AnthropicClient {
         guard let decoded = try? JSONDecoder().decode(ResponseBody.self, from: data) else {
             throw ClientError.malformed
         }
-        return decoded.content
+        let text = decoded.content
             .compactMap(\.text)
             .joined(separator: "\n")
             .trimmingCharacters(in: .whitespacesAndNewlines)
+        return AIReply(text: text, truncated: decoded.stopReason == "max_tokens")
     }
 
     func validate(apiKey: String) async -> Result<Void, ClientError> {
@@ -81,6 +82,12 @@ struct AnthropicClient {
 
     private struct ResponseBody: Decodable {
         let content: [Block]
+        let stopReason: String?
+
+        enum CodingKeys: String, CodingKey {
+            case content
+            case stopReason = "stop_reason"
+        }
 
         struct Block: Decodable {
             let type: String
