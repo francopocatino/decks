@@ -9,8 +9,11 @@ struct MeetingsView: View {
 
     @State private var scope: CalendarService.Scope = .today
     @State private var meetings: [Meeting] = []
-    @State private var authorized = CalendarService.isAuthorized()
-    @State private var loading = false
+    // Optimistic: load() sets the real value from requestAccess() (the
+    // authoritative check). Starting false here would flash the access prompt
+    // on every deck switch when EKEventStore's cached status is stale.
+    @State private var authorized = true
+    @State private var loading = true
     @State private var now = Date()
 
     private let tick = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
@@ -63,28 +66,24 @@ struct MeetingsView: View {
 
     @ViewBuilder
     private var content: some View {
-        if !authorized {
-            ContentUnavailableView {
-                Label("Calendar access", systemImage: "calendar")
-            } description: {
-                Text("Allow calendar access to see this deck's meetings.")
-            } actions: {
-                Button("Allow access") {
-                    Task {
-                        await CalendarService.requestAccess()
-                        authorized = CalendarService.isAuthorized()
-                        await load()
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else if sources.isEmpty {
+        if sources.isEmpty {
             ContentUnavailableView {
                 Label("No calendar selected", systemImage: "calendar")
             } description: {
                 Text("Choose which calendar account this deck reads from.")
             } actions: {
                 Button("Open settings", action: openDeckSettings)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if !authorized {
+            ContentUnavailableView {
+                Label("Calendar access", systemImage: "calendar")
+            } description: {
+                Text("Allow calendar access to see this deck's meetings.")
+            } actions: {
+                Button("Allow access") {
+                    Task { await load() }
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if meetings.isEmpty {
@@ -179,12 +178,23 @@ struct MeetingsView: View {
 
     private func load() async {
         let requested = reloadKey
+        // No calendar selected: nothing to authorize or fetch, and asking for
+        // calendar access here would prompt decks that never opted in.
+        guard !sources.isEmpty else {
+            meetings = []
+            loading = false
+            return
+        }
         loading = true
-        let fetched = await CalendarService.meetings(sources: sources, scope: scope)
+        // requestAccess() is authoritative — it reports access granted even
+        // when EKEventStore's cached authorizationStatus is briefly stale, so
+        // the prompt resolves on its own instead of needing a click per switch.
+        let granted = await CalendarService.requestAccess()
+        let fetched = granted ? await CalendarService.meetings(sources: sources, scope: scope) : []
         // A newer scope/source supersedes this fetch: drop its stale result.
         guard !Task.isCancelled, requested == reloadKey else { return }
+        authorized = granted
         meetings = fetched
-        authorized = CalendarService.isAuthorized()
         loading = false
     }
 }
