@@ -4,8 +4,6 @@ import SwiftUI
 struct RootView: View {
     @Environment(DecksStore.self) private var store
     @Environment(UpdateChecker.self) private var updates
-    @Environment(IdentityStore.self) private var identity
-    @Environment(ChatStore.self) private var chat
     @Environment(RemindersSyncEngine.self) private var reminders
     @Environment(NotificationScheduler.self) private var notifications
     @Environment(TimeTrackingEngine.self) private var tracker
@@ -110,8 +108,6 @@ struct RootView: View {
         .confirmationDialog("Delete this deck?", isPresented: deleteDialog, presenting: pendingDelete) { deck in
             Button("Delete \(deck.name)", role: .destructive) {
                 store.deleteDeck(deck.slug)
-                chat.forget(deck.slug)
-                identity.forgetProfile(deck.slug)
             }
         } message: { _ in
             Text("This removes the deck and all its notes from disk. This cannot be undone.")

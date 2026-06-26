@@ -9,7 +9,7 @@ struct DecksApp: App {
     @State private var store: DecksStore
     @State private var updates = UpdateChecker()
     @State private var identity: IdentityStore
-    @State private var chat = ChatStore()
+    @State private var chat: ChatStore
     @State private var reminders: RemindersSyncEngine
     @State private var notifications: NotificationScheduler
     @State private var tracker: TimeTrackingEngine
@@ -23,21 +23,29 @@ struct DecksApp: App {
     init() {
         let store = DecksStore()
         let identity = IdentityStore()
+        let chat = ChatStore()
         let reminders = RemindersSyncEngine(store: store, identity: identity)
         let tracker = TimeTrackingEngine(store: store)
         let spotlight = SpotlightIndexer(store: store)
+        let mirror = CloudMirrorEngine(store: store)
         _store = State(initialValue: store)
         _identity = State(initialValue: identity)
+        _chat = State(initialValue: chat)
         _reminders = State(initialValue: reminders)
         _notifications = State(initialValue: NotificationScheduler(store: store, identity: identity))
         _tracker = State(initialValue: tracker)
         _spotlight = State(initialValue: spotlight)
-        _mirror = State(initialValue: CloudMirrorEngine(store: store))
+        _mirror = State(initialValue: mirror)
         _capturePanel = State(initialValue: QuickCapturePanel(store: store))
+        // Single eviction point for every per-deck cache and engine, so an
+        // external (CLI/Finder) delete cleans up the same as the in-app one.
         store.onDeckRemoved = { slug in
             reminders.deckRemoved(slug)
             tracker.deckRemoved(slug)
             spotlight.deckRemoved(slug)
+            mirror.deckRemoved(slug)
+            identity.forgetProfile(slug)
+            chat.forget(slug)
         }
     }
 
