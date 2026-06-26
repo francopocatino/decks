@@ -20,12 +20,23 @@ struct MeetingsView: View {
             header
             content
         }
-        .task(id: scope) { await load() }
-        .onReceive(tick) { now = $0 }
+        .task(id: reloadKey) { await load() }
+        .onReceive(tick) { instant in
+            now = instant
+            // Refetch on the timer so the list isn't frozen across midnight or
+            // after an external calendar edit (the 'meetings' array is otherwise
+            // only rebuilt on scope/source change or a manual refresh).
+            Task { await load() }
+        }
     }
 
     private var sources: [String] {
         identity.effectiveCalendarSources(for: slug, parent: store.deck(slug)?.parent)
+    }
+
+    // Reloads whenever the scope or the deck's calendar sources change.
+    private var reloadKey: String {
+        "\(scope == .today ? "today" : "all")|\(sources.sorted().joined(separator: ","))"
     }
 
     private var header: some View {
@@ -167,8 +178,12 @@ struct MeetingsView: View {
     }
 
     private func load() async {
+        let requested = reloadKey
         loading = true
-        meetings = await CalendarService.meetings(sources: sources, scope: scope)
+        let fetched = await CalendarService.meetings(sources: sources, scope: scope)
+        // A newer scope/source supersedes this fetch: drop its stale result.
+        guard !Task.isCancelled, requested == reloadKey else { return }
+        meetings = fetched
         authorized = CalendarService.isAuthorized()
         loading = false
     }

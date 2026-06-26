@@ -113,4 +113,14 @@ struct Link: Identifiable, Codable, Hashable {
         self.url = url
         self.note = note
     }
+
+    // `note` is optional on the CLI side; tolerate a record that omits it
+    // instead of failing the whole links.json decode (and backing it up).
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        label = try container.decode(String.self, forKey: .label)
+        url = try container.decode(String.self, forKey: .url)
+        note = try container.decodeIfPresent(String.self, forKey: .note) ?? ""
+    }
 }

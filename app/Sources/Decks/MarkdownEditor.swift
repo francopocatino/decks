@@ -54,6 +54,26 @@ final class MarkdownEditorController {
     }
 }
 
+// Handles ⌘B/⌘I/⌘K itself so the command lands in the focused editor only.
+// SwiftUI button keyboard shortcuts are window-global and can't disambiguate
+// two visible markdown panes, so they'd mutate the wrong (or unfocused) buffer.
+final class MarkdownTextView: NSTextView {
+    weak var commands: MarkdownEditorController?
+
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command,
+           window?.firstResponder === self {
+            switch event.charactersIgnoringModifiers {
+            case "b": commands?.bold(); return true
+            case "i": commands?.italic(); return true
+            case "k": commands?.link(); return true
+            default: break
+            }
+        }
+        return super.performKeyEquivalent(with: event)
+    }
+}
+
 struct MarkdownEditor: NSViewRepresentable {
     @Binding var text: String
     let controller: MarkdownEditorController
@@ -64,8 +84,8 @@ struct MarkdownEditor: NSViewRepresentable {
     }
 
     func makeNSView(context: Context) -> NSScrollView {
-        let scroll = NSTextView.scrollableTextView()
-        let textView = scroll.documentView as! NSTextView
+        let textView = MarkdownTextView()
+        textView.commands = controller
         textView.delegate = context.coordinator
         textView.allowsUndo = true
         textView.isRichText = false
@@ -75,9 +95,22 @@ struct MarkdownEditor: NSViewRepresentable {
         textView.isAutomaticTextReplacementEnabled = false
         textView.drawsBackground = false
         textView.textContainerInset = NSSize(width: 12, height: 14)
+        textView.isVerticallyResizable = true
+        textView.isHorizontallyResizable = false
+        textView.minSize = NSSize(width: 0, height: 0)
+        textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        textView.autoresizingMask = [.width]
+        textView.textContainer?.widthTracksTextView = true
+        textView.textContainer?.containerSize = NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude)
+
+        let scroll = NSScrollView()
         scroll.drawsBackground = false
+        scroll.hasVerticalScroller = true
+        scroll.documentView = textView
+
         textView.string = text
         controller.textView = textView
+        context.coordinator.lastAccent = accent
         MarkdownStyler.style(textView, accent: accent)
         return scroll
     }
@@ -92,12 +125,20 @@ struct MarkdownEditor: NSViewRepresentable {
             let length = (text as NSString).length
             textView.setSelectedRange(NSRange(location: min(selection.location, length), length: 0))
             MarkdownStyler.style(textView, accent: accent)
+            context.coordinator.lastAccent = accent
+        } else if context.coordinator.lastAccent != accent {
+            // The deck's accent changed while the buffer didn't; restyle so the
+            // bullet/accent tint refreshes without waiting for a keystroke.
+            MarkdownStyler.style(textView, accent: accent)
+            context.coordinator.lastAccent = accent
         }
     }
 
     @MainActor
     final class Coordinator: NSObject, NSTextViewDelegate {
         var parent: MarkdownEditor
+        var lastAccent: NSColor?
+        private var lastActiveLine: NSRange?
 
         init(_ parent: MarkdownEditor) {
             self.parent = parent
@@ -107,12 +148,17 @@ struct MarkdownEditor: NSViewRepresentable {
             guard let textView = notification.object as? NSTextView else { return }
             parent.text = textView.string
             MarkdownStyler.style(textView, accent: parent.accent)
+            lastActiveLine = (textView.string as NSString).lineRange(for: textView.selectedRange())
         }
 
         // Concealed syntax reveals on the caret's line, so restyle as the
-        // selection moves between lines.
+        // selection moves between lines — but skip intra-line moves, whose
+        // conceal state is unchanged, to avoid a full-document pass per arrow key.
         func textViewDidChangeSelection(_ notification: Notification) {
             guard let textView = notification.object as? NSTextView else { return }
+            let active = (textView.string as NSString).lineRange(for: textView.selectedRange())
+            if let lastActiveLine, NSEqualRanges(lastActiveLine, active) { return }
+            lastActiveLine = active
             MarkdownStyler.style(textView, accent: parent.accent)
         }
     }
@@ -213,28 +259,24 @@ struct MarkdownFormatButtons: View {
 
     var body: some View {
         HStack(spacing: 2) {
-            button("bold", "Bold (⌘B)", shortcut: "b") { controller.bold() }
-            button("italic", "Italic (⌘I)", shortcut: "i") { controller.italic() }
+            button("bold", "Bold (⌘B)") { controller.bold() }
+            button("italic", "Italic (⌘I)") { controller.italic() }
             button("chevron.left.forwardslash.chevron.right", "Code") { controller.code() }
             button("textformat.size", "Heading") { controller.heading() }
             button("list.bullet", "List") { controller.list() }
-            button("link", "Link (⌘K)", shortcut: "k") { controller.link() }
+            button("link", "Link (⌘K)") { controller.link() }
         }
         .foregroundStyle(.secondary)
     }
 
-    @ViewBuilder
-    private func button(_ symbol: String, _ help: String, shortcut: Character? = nil, action: @escaping () -> Void) -> some View {
-        let button = Button(action: action) {
+    // ⌘B/⌘I/⌘K are handled by the focused NSTextView, not a window-global
+    // SwiftUI shortcut, so these stay click-only.
+    private func button(_ symbol: String, _ help: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
             Image(systemName: symbol)
                 .frame(width: 22, height: 18)
         }
         .buttonStyle(.borderless)
         .help(help)
-        if let shortcut {
-            button.keyboardShortcut(KeyEquivalent(shortcut), modifiers: .command)
-        } else {
-            button
-        }
     }
 }

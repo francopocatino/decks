@@ -101,7 +101,10 @@ enum CalendarService {
         let store = EKEventStore()
         let scoped = store.calendars(for: .event)
             .filter { sources.contains($0.source?.sourceIdentifier ?? "") && $0.allowsContentModifications }
-        guard let calendar = scoped.first ?? store.defaultCalendarForNewEvents else { return false }
+        // Strictly scoped: never fall back to the default calendar, which could
+        // be entirely outside this deck's selection. No writable scoped calendar
+        // means the block isn't created and the caller surfaces the failure.
+        guard let calendar = scoped.first else { return false }
 
         let event = EKEvent(eventStore: store)
         event.calendar = calendar

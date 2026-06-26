@@ -116,7 +116,7 @@ struct DeckSettingsForm: View {
             } header: {
                 Text("Calendar")
             } footer: {
-                Text("Which accounts the Meetings button reads from. None selected means all calendars.")
+                Text("Which accounts the Meetings section reads from. With none selected this deck shows no meetings; a sub-deck inherits the parent's selection.")
             }
             Section {
                 Toggle("Sync to-dos with Apple Reminders", isOn: remindersBinding)
