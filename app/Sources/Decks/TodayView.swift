@@ -62,10 +62,18 @@ struct TodayView: View {
                     .foregroundStyle(.secondary)
                     .padding(.vertical, 8)
             } else {
-                VStack(spacing: 0) {
-                    ForEach(agendaItems) { item in
-                        agendaRow(item)
-                        if item.id != agendaItems.last?.id { Divider() }
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(groupedAgenda, id: \.day) { group in
+                        if showDayHeaders {
+                            Text(dayLabel(group.day))
+                                .font(.subheadline.weight(.semibold))
+                                .padding(.top, group.day == groupedAgenda.first?.day ? 4 : 16)
+                                .padding(.bottom, 2)
+                        }
+                        ForEach(group.items) { item in
+                            agendaRow(item)
+                            if item.id != group.items.last?.id { Divider() }
+                        }
                     }
                 }
             }
@@ -108,6 +116,24 @@ struct TodayView: View {
             }
         }
         return items.sorted { $0.meeting.start < $1.meeting.start }
+    }
+
+    // Upcoming spans several days; group under day headers so identical
+    // recurring slots read as different days, not duplicates.
+    private var groupedAgenda: [(day: Date, items: [AgendaItem])] {
+        let calendar = Calendar.current
+        let groups = Dictionary(grouping: agendaItems) { calendar.startOfDay(for: $0.meeting.start) }
+        return groups.keys.sorted().map { day in
+            (day: day, items: groups[day]!.sorted { $0.meeting.start < $1.meeting.start })
+        }
+    }
+
+    private var showDayHeaders: Bool { scope == .upcoming }
+
+    private func dayLabel(_ date: Date) -> String {
+        if Calendar.current.isDateInToday(date) { return "Today" }
+        if Calendar.current.isDateInTomorrow(date) { return "Tomorrow" }
+        return date.formatted(.dateTime.weekday(.wide).day().month(.abbreviated))
     }
 
     private var emptyAgendaHint: String {
