@@ -63,6 +63,18 @@ final class CloudMirrorEngine {
         FileManager.default.fileExists(atPath: folder.deletingLastPathComponent().path)
     }
 
+    // The deck is gone: drop its iCloud digest now instead of waiting for the
+    // next throttled tick (which never runs if the app quits first).
+    func deckRemoved(_ slug: String) {
+        let name = "\(slug).md"
+        try? FileManager.default.removeItem(at: Self.folder.appendingPathComponent(name))
+        written[name] = nil
+        let manifest = UserDefaults.standard.stringArray(forKey: Pref.cloudMirrorFiles) ?? []
+        if manifest.contains(name) {
+            UserDefaults.standard.set(manifest.filter { $0 != name }, forKey: Pref.cloudMirrorFiles)
+        }
+    }
+
     func tick() {
         guard UserDefaults.standard.bool(forKey: Pref.icloudMirror), Self.isAvailable else { return }
         guard throttle.ready() else { return }

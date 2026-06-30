@@ -32,7 +32,7 @@ struct DailyView: View {
             .buttonStyle(.borderless)
             .help("Start today's entry")
 
-            if DeckAssistant.hasBackend(for: slug, identity: identity) {
+            if DeckAssistant.hasBackend(for: slug, parent: parent, identity: identity) {
                 Button(action: draftToday) {
                     if working {
                         ProgressView().controlSize(.small)
@@ -77,6 +77,8 @@ struct DailyView: View {
         store.deck(slug).map { store.accentNSColor(for: $0) } ?? .controlAccentColor
     }
 
+    private var parent: String? { store.deck(slug)?.parent }
+
     private var dailyBinding: Binding<String> {
         Binding(
             get: { store.daily(slug) },
@@ -106,8 +108,8 @@ struct DailyView: View {
         aiError = nil
         Task {
             do {
-                let draft = try await DeckAssistant.run(system: system, user: context, slug: slug, identity: identity)
-                store.addDailyLine(draft, to: slug)
+                let reply = try await DeckAssistant.run(system: system, user: context, slug: slug, parent: parent, identity: identity)
+                store.addDailyLine(reply.text, to: slug)
             } catch {
                 aiError = error.localizedDescription
             }

@@ -6,6 +6,11 @@ import Observation
 final class IdentityStore {
     private(set) var accounts: [Account] = []
     private var profiles: [String: DeckProfile] = [:]
+    // Backs disk reads so headers asking for a profile every render don't hit
+    // the filesystem each time. Non-observed: writing it from profile() during
+    // a SwiftUI body pass must not mutate tracked state. The form is the only
+    // writer of profile.json, so the only invalidation is forgetProfile.
+    @ObservationIgnored private var profileCache: [String: DeckProfile] = [:]
 
     init() {
         accounts = Storage.readJSON([Account].self, at: accountsURL) ?? []
@@ -39,16 +44,22 @@ final class IdentityStore {
     // MARK: Profiles
 
     func profile(_ slug: String) -> DeckProfile {
-        profiles[slug] ?? Storage.readJSON(DeckProfile.self, at: profileURL(slug)) ?? DeckProfile()
+        if let saved = profiles[slug] { return saved }
+        if let cached = profileCache[slug] { return cached }
+        let loaded = Storage.readJSON(DeckProfile.self, at: profileURL(slug)) ?? DeckProfile()
+        profileCache[slug] = loaded
+        return loaded
     }
 
     func saveProfile(_ profile: DeckProfile, for slug: String) {
         profiles[slug] = profile
+        profileCache[slug] = profile
         Storage.writeJSON(profile, to: profileURL(slug))
     }
 
     func forgetProfile(_ slug: String) {
         profiles[slug] = nil
+        profileCache[slug] = nil
     }
 
     func effectiveCalendarSources(for slug: String, parent: String?) -> [String] {
@@ -56,6 +67,22 @@ final class IdentityStore {
         if !own.isEmpty { return own }
         if let parent { return profile(parent).calendarSources ?? [] }
         return []
+    }
+
+    // A sub-deck falls back to its parent's AI connector and instructions when
+    // its own are unset, matching effectiveCalendarSources and the CLI's
+    // effective_profile.
+    func effectiveAccountID(for slug: String, parent: String?) -> UUID? {
+        if let own = profile(slug).accountID { return own }
+        if let parent { return profile(parent).accountID }
+        return nil
+    }
+
+    func effectiveInstructions(for slug: String, parent: String?) -> String {
+        let own = profile(slug).instructions.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !own.isEmpty { return own }
+        if let parent { return profile(parent).instructions.trimmingCharacters(in: .whitespacesAndNewlines) }
+        return ""
     }
 
     func accountName(_ id: UUID?) -> String? {

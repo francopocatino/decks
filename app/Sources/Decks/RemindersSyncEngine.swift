@@ -24,6 +24,9 @@ final class RemindersSyncEngine {
     @ObservationIgnored private var dirty = true
     @ObservationIgnored private var syncing = false
     @ObservationIgnored private var throttle = Throttle(30)
+    // Each synced deck's list identifier, cached while the deck exists so it
+    // survives the deck directory vanishing on an external delete.
+    @ObservationIgnored private var calendarIDs: [String: String] = [:]
 
     init(store: DecksStore, identity: IdentityStore) {
         self.store = store
@@ -64,12 +67,14 @@ final class RemindersSyncEngine {
         }
     }
 
-    // The deck is being deleted: remove its Reminders list so it doesn't
-    // get adopted (old reminders included) by a future same-named deck.
+    // The deck is being deleted: remove its Reminders list so its reminders
+    // don't linger. The id comes from the in-memory cache because on an
+    // external delete the deck's reminders-sync.json is already gone.
     func deckRemoved(_ slug: String) {
-        guard Self.isAuthorized() else { return }
-        let state = Self.readState(Self.stateURL(slug))
-        guard let id = state.calendarID, let calendar = eventStore.calendar(withIdentifier: id) else { return }
+        let id = calendarIDs[slug] ?? Self.readState(Self.stateURL(slug)).calendarID
+        calendarIDs[slug] = nil
+        guard Self.isAuthorized(), let id,
+              let calendar = eventStore.calendar(withIdentifier: id) else { return }
         try? eventStore.removeCalendar(calendar, commit: true)
     }
 
@@ -77,8 +82,11 @@ final class RemindersSyncEngine {
         let stateURL = Self.stateURL(deck.slug)
         var state = Self.readState(stateURL)
         guard let calendar = ensureCalendar(for: deck, state: &state) else { return }
+        calendarIDs[deck.slug] = calendar.calendarIdentifier
 
-        let remotes = await fetchRemotes(in: calendar)
+        // nil means the fetch itself failed; treat it as "unknown", not "the
+        // list is empty", so a transient failure never mass-deletes todos.
+        guard let remotes = await fetchRemotes(in: calendar) else { return }
 
         // Re-read disk before planning so a CLI write during the await above
         // is merged instead of overwritten. Everything below is synchronous.
@@ -116,7 +124,10 @@ final class RemindersSyncEngine {
                 due: plan.todos[index].due
             )
         }
-        try? eventStore.commit()
+        // Persist the planned reminderIDs and snapshot only if the batch
+        // actually landed; a failed commit means the created reminders don't
+        // exist, so the next sync re-creates them from disk truth.
+        guard (try? eventStore.commit()) != nil else { return }
 
         if plan.todos != todos {
             store.replaceTodos(plan.todos, for: deck.slug)
@@ -132,9 +143,15 @@ final class RemindersSyncEngine {
         reminder.dueDateComponents = due.map {
             Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: $0)
         }
-        reminder.alarms = due.map { [EKAlarm(absoluteDate: $0)] }
+        // Relative offset tracks the floating due components: after a timezone
+        // change the alarm re-floats with the displayed due instead of firing
+        // at the original absolute instant.
+        reminder.alarms = due.map { _ in [EKAlarm(relativeOffset: 0)] }
     }
 
+    // A deck binds to its list strictly by stored identifier — never by title.
+    // Matching on name let two same-named decks share one list and import each
+    // other's reminders; always creating a fresh list keeps them isolated.
     private func ensureCalendar(for deck: Deck, state: inout RemindersSyncState) -> EKCalendar? {
         if let id = state.calendarID {
             if let calendar = eventStore.calendar(withIdentifier: id) {
@@ -146,34 +163,32 @@ final class RemindersSyncEngine {
             state.calendarID = nil
             state.items = [:]
         }
-        let calendar: EKCalendar
-        if let existing = eventStore.calendars(for: .reminder).first(where: { $0.title == deck.name }) {
-            calendar = existing
-        } else {
-            let created = EKCalendar(for: .reminder, eventStore: eventStore)
-            created.title = deck.name
-            guard let source = eventStore.defaultCalendarForNewReminders()?.source
-                ?? eventStore.sources.first(where: { $0.sourceType == .calDAV })
-                ?? eventStore.sources.first(where: { $0.sourceType == .local })
-            else { return nil }
-            created.source = source
-            guard (try? eventStore.saveCalendar(created, commit: true)) != nil else { return nil }
-            calendar = created
-            // A brand-new list has synced nothing; a stale snapshot here
-            // would read as mass remote deletion.
-            state.items = [:]
-        }
-        state.calendarID = calendar.calendarIdentifier
-        return calendar
+        let created = EKCalendar(for: .reminder, eventStore: eventStore)
+        created.title = deck.name
+        guard let source = eventStore.defaultCalendarForNewReminders()?.source
+            ?? eventStore.sources.first(where: { $0.sourceType == .calDAV })
+            ?? eventStore.sources.first(where: { $0.sourceType == .local })
+        else { return nil }
+        created.source = source
+        guard (try? eventStore.saveCalendar(created, commit: true)) != nil else { return nil }
+        // A brand-new list has synced nothing; a stale snapshot here would
+        // read as mass remote deletion.
+        state.items = [:]
+        state.calendarID = created.calendarIdentifier
+        return created
     }
 
     // Extract plain values inside the callback: one fetch, no per-item
     // EventKit lookups, nothing non-Sendable crossing the continuation.
-    private func fetchRemotes(in calendar: EKCalendar) async -> [RemindersMerge.Remote] {
+    private func fetchRemotes(in calendar: EKCalendar) async -> [RemindersMerge.Remote]? {
         let predicate = eventStore.predicateForReminders(in: [calendar])
         return await withCheckedContinuation { continuation in
             eventStore.fetchReminders(matching: predicate) { reminders in
-                let remotes = (reminders ?? []).compactMap { reminder -> RemindersMerge.Remote? in
+                guard let reminders else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                let remotes = reminders.compactMap { reminder -> RemindersMerge.Remote? in
                     let text = (reminder.title ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
                     guard !text.isEmpty else { return nil }
                     return RemindersMerge.Remote(

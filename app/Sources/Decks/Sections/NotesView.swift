@@ -23,7 +23,7 @@ struct NotesView: View {
 
     private var header: some View {
         HStack(spacing: 8) {
-            if DeckAssistant.hasBackend(for: slug, identity: identity), !store.notes(slug).isEmpty {
+            if DeckAssistant.hasBackend(for: slug, parent: parent, identity: identity), !store.notes(slug).isEmpty {
                 Button(action: polish) {
                     if working {
                         ProgressView().controlSize(.small)
@@ -60,6 +60,8 @@ struct NotesView: View {
         store.deck(slug).map { store.accentNSColor(for: $0) } ?? .controlAccentColor
     }
 
+    private var parent: String? { store.deck(slug)?.parent }
+
     private var notesBinding: Binding<String> {
         Binding(
             get: { store.notes(slug) },
@@ -77,8 +79,12 @@ struct NotesView: View {
         aiError = nil
         Task {
             do {
-                let result = try await DeckAssistant.run(system: system, user: store.notes(slug), slug: slug, identity: identity)
-                store.setNotes(result, for: slug)
+                let reply = try await DeckAssistant.run(system: system, user: store.notes(slug), slug: slug, parent: parent, identity: identity)
+                if reply.truncated {
+                    aiError = "These notes are too long to polish without cutting them off, so they were left unchanged."
+                } else {
+                    store.setNotes(reply.text, for: slug)
+                }
             } catch {
                 aiError = error.localizedDescription
             }

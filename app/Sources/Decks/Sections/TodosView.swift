@@ -7,6 +7,7 @@ struct TodosView: View {
     @State private var draft = ""
     @State private var editingID: UUID?
     @State private var editText = ""
+    @State private var blockError: String?
     @FocusState private var editorFocused: Bool
 
     var body: some View {
@@ -29,6 +30,15 @@ struct TodosView: View {
 
             composer
         }
+        .alert("Couldn't block time", isPresented: blockErrorBinding) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(blockError ?? "")
+        }
+    }
+
+    private var blockErrorBinding: Binding<Bool> {
+        Binding(get: { blockError != nil }, set: { if !$0 { blockError = nil } })
     }
 
     private func row(_ todo: Todo) -> some View {
@@ -98,13 +108,16 @@ struct TodosView: View {
         let deckName = store.deck(slug)?.name ?? slug
         let sources = identity.effectiveCalendarSources(for: slug, parent: store.deck(slug)?.parent)
         Task {
-            await CalendarService.createTimeBlock(
+            let created = await CalendarService.createTimeBlock(
                 title: todo.text,
                 start: start,
                 duration: hours * 3600,
                 sources: sources,
                 note: "Decks · \(deckName)"
             )
+            if !created {
+                blockError = "Couldn't create the time block. Choose a writable calendar for this deck in its settings."
+            }
         }
     }
 
