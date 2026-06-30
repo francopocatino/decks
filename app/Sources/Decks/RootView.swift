@@ -17,61 +17,19 @@ struct RootView: View {
     @State private var renameText = ""
     @State private var pendingDelete: Deck?
     @State private var showingPalette = false
+    @State private var showingToday = false
+    private let todayTag = "__today__"
 
     var body: some View {
         NavigationSplitView {
-            List(selection: selectionBinding) {
-                Section("Decks") {
-                    ForEach(store.topLevelVisibleDecks()) { deck in
-                        let children = store.visibleChildren(of: deck.slug)
-                        if children.isEmpty {
-                            deckRow(deck)
-                        } else {
-                            DisclosureGroup {
-                                ForEach(children) { child in
-                                    deckRow(child)
-                                }
-                                .onMove { store.moveDecks(parent: deck.slug, fromOffsets: $0, toOffset: $1) }
-                            } label: {
-                                deckRow(deck)
-                            }
-                        }
-                    }
-                    .onMove { store.moveDecks(parent: nil, fromOffsets: $0, toOffset: $1) }
-                }
-                if !store.archivedDecks.isEmpty {
-                    Section("Archived") {
-                        ForEach(store.archivedDecks) { deck in
-                            deckRow(deck)
-                        }
-                    }
-                }
-            }
-            .listStyle(.sidebar)
-            .navigationSplitViewColumnWidth(min: 200, ideal: 224, max: 300)
-            .safeAreaInset(edge: .bottom) {
-                HStack {
-                    Button {
-                        startNewDeck(parent: nil)
-                    } label: {
-                        Label("New deck", systemImage: "plus")
-                    }
-                    .buttonStyle(.plain)
-                    .keyboardShortcut("n")
-                    Spacer()
-                    Button {
-                        store.settingsSection = .general
-                        openSettings()
-                    } label: {
-                        Image(systemName: "gearshape")
-                    }
-                    .buttonStyle(.plain)
-                    .help("Settings")
-                }
-                .padding(12)
-            }
+            sidebar
         } detail: {
-            if let deck = store.activeDeck {
+            if showingToday {
+                TodayView(onOpenDeck: { slug in
+                    showingToday = false
+                    store.select(slug)
+                })
+            } else if let deck = store.activeDeck {
                 DeckDetailView(deck: deck)
                     .id(deck.slug)
             } else {
@@ -82,6 +40,7 @@ struct RootView: View {
                 )
             }
         }
+        .onChange(of: store.activeSlug) { _, _ in showingToday = false }
         .sheet(isPresented: $showingNewDeck) {
             DeckNameSheet(
                 title: newDeckParent == nil ? "New deck" : "New sub-deck",
@@ -151,6 +110,63 @@ struct RootView: View {
         }
     }
 
+    private var sidebar: some View {
+        List(selection: selectionBinding) {
+            Section {
+                Label("Today", systemImage: "sun.max")
+                    .tag(todayTag)
+            }
+            Section("Decks") {
+                ForEach(store.topLevelVisibleDecks()) { deck in
+                    let children = store.visibleChildren(of: deck.slug)
+                    if children.isEmpty {
+                        deckRow(deck)
+                    } else {
+                        DisclosureGroup {
+                            ForEach(children) { child in
+                                deckRow(child)
+                            }
+                            .onMove { store.moveDecks(parent: deck.slug, fromOffsets: $0, toOffset: $1) }
+                        } label: {
+                            deckRow(deck)
+                        }
+                    }
+                }
+                .onMove { store.moveDecks(parent: nil, fromOffsets: $0, toOffset: $1) }
+            }
+            if !store.archivedDecks.isEmpty {
+                Section("Archived") {
+                    ForEach(store.archivedDecks) { deck in
+                        deckRow(deck)
+                    }
+                }
+            }
+        }
+        .listStyle(.sidebar)
+        .navigationSplitViewColumnWidth(min: 200, ideal: 224, max: 300)
+        .safeAreaInset(edge: .bottom) {
+            HStack {
+                Button {
+                    startNewDeck(parent: nil)
+                } label: {
+                    Label("New deck", systemImage: "plus")
+                }
+                .buttonStyle(.plain)
+                .keyboardShortcut("n")
+                Spacer()
+                Button {
+                    store.settingsSection = .general
+                    openSettings()
+                } label: {
+                    Image(systemName: "gearshape")
+                }
+                .buttonStyle(.plain)
+                .help("Settings")
+            }
+            .padding(12)
+        }
+    }
+
     private func deckRow(_ deck: Deck) -> some View {
         Label {
             Text(deck.name)
@@ -202,6 +218,9 @@ struct RootView: View {
 
     private var paletteActions: [CommandAction] {
         [
+            CommandAction(id: "today", title: "Today", subtitle: "Overview across decks", symbol: "sun.max") {
+                showingToday = true
+            },
             CommandAction(id: "new-deck", title: "New deck", subtitle: nil, symbol: "plus") {
                 startNewDeck(parent: nil)
             },
@@ -224,8 +243,15 @@ struct RootView: View {
 
     private var selectionBinding: Binding<String?> {
         Binding(
-            get: { store.activeSlug },
-            set: { if let slug = $0 { store.select(slug) } }
+            get: { showingToday ? todayTag : store.activeSlug },
+            set: { value in
+                if value == todayTag {
+                    showingToday = true
+                } else if let slug = value {
+                    showingToday = false
+                    store.select(slug)
+                }
+            }
         )
     }
 
