@@ -111,7 +111,9 @@ struct QuickCaptureView: View {
                 Text("Focus").foregroundStyle(.secondary)
             } else {
                 Text(pomodoro.phase.title).foregroundStyle(.secondary)
-                Text(pomodoro.timeString).monospacedDigit()
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    Text(pomodoro.timeString(at: context.date)).monospacedDigit()
+                }
             }
             Spacer()
             Button { pomodoro.toggle() } label: {

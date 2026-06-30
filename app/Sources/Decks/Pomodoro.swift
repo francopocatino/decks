@@ -3,6 +3,10 @@ import UserNotifications
 
 // A focus timer (not tracked time — the Time engine already logs real work).
 // Work → break → work, auto-cycling with a notification at each handoff.
+//
+// The live countdown is derived from `endsAt` by the views (via TimelineView),
+// not stored and mutated every second: mutating observed state on a timer can
+// land mid-layout and trap AppKit's constraint pass when hosted in a window.
 @MainActor
 @Observable
 final class PomodoroEngine {
@@ -27,12 +31,12 @@ final class PomodoroEngine {
 
     private(set) var phase: Phase = .idle
     private(set) var running = false
-    private(set) var remaining: TimeInterval = 0
     private(set) var phaseTotal: TimeInterval = 25 * 60
     private(set) var completed = 0
     private(set) var completedToday = 0
 
     @ObservationIgnored private var endsAt: Date?
+    @ObservationIgnored private var pausedRemaining: TimeInterval = 0
     @ObservationIgnored private var ticker: Task<Void, Never>?
     @ObservationIgnored private var dayStamp = TimeLedger.day(Date())
 
@@ -45,10 +49,17 @@ final class PomodoroEngine {
     var shortMinutes: Int { minutes(Self.shortKey, 5) }
     var longMinutes: Int { minutes(Self.longKey, 15) }
 
-    var fraction: Double { phaseTotal > 0 ? max(0, min(1, remaining / phaseTotal)) : 0 }
+    func remaining(at now: Date = Date()) -> TimeInterval {
+        if running, let endsAt { return max(0, endsAt.timeIntervalSince(now)) }
+        return pausedRemaining
+    }
 
-    var timeString: String {
-        let total = Int(remaining.rounded(.up))
+    func fraction(at now: Date = Date()) -> Double {
+        phaseTotal > 0 ? max(0, min(1, remaining(at: now) / phaseTotal)) : 0
+    }
+
+    func timeString(at now: Date = Date()) -> String {
+        let total = Int(remaining(at: now).rounded(.up))
         return String(format: "%d:%02d", total / 60, total % 60)
     }
 
@@ -65,16 +76,16 @@ final class PomodoroEngine {
     }
 
     func pause() {
-        guard running, let endsAt else { return }
-        remaining = max(0, endsAt.timeIntervalSinceNow)
+        guard running else { return }
+        pausedRemaining = remaining()
         running = false
-        self.endsAt = nil
+        endsAt = nil
         stopTicker()
     }
 
     func resume() {
-        guard !running, phase != .idle, remaining > 0 else { return }
-        endsAt = Date().addingTimeInterval(remaining)
+        guard !running, phase != .idle, pausedRemaining > 0 else { return }
+        endsAt = Date().addingTimeInterval(pausedRemaining)
         running = true
         startTicker()
     }
@@ -83,9 +94,9 @@ final class PomodoroEngine {
         stopTicker()
         phase = .idle
         running = false
-        remaining = 0
-        completed = 0
+        pausedRemaining = 0
         phaseTotal = TimeInterval(workMinutes * 60)
+        completed = 0
         endsAt = nil
     }
 
@@ -106,18 +117,21 @@ final class PomodoroEngine {
         rollover()
         self.phase = phase
         phaseTotal = TimeInterval(minutes(for: phase) * 60)
-        remaining = phaseTotal
-        endsAt = Date().addingTimeInterval(remaining)
+        pausedRemaining = phaseTotal
+        endsAt = Date().addingTimeInterval(phaseTotal)
         running = true
         startTicker()
     }
 
+    // Watches for the phase to elapse; it never touches observed state per
+    // second, only on the actual transition.
     private func startTicker() {
         stopTicker()
         ticker = Task { @MainActor [weak self] in
             while !Task.isCancelled {
-                self?.tick()
-                try? await Task.sleep(for: .seconds(1))
+                try? await Task.sleep(for: .milliseconds(500))
+                guard let self, self.running, let endsAt = self.endsAt else { continue }
+                if Date() >= endsAt { self.complete(skipped: false) }
             }
         }
     }
@@ -125,12 +139,6 @@ final class PomodoroEngine {
     private func stopTicker() {
         ticker?.cancel()
         ticker = nil
-    }
-
-    private func tick() {
-        guard running, let endsAt else { return }
-        remaining = max(0, endsAt.timeIntervalSinceNow)
-        if remaining <= 0 { complete(skipped: false) }
     }
 
     private func complete(skipped: Bool) {
@@ -190,8 +198,16 @@ struct PomodoroView: View {
     }
 
     var body: some View {
+        // The schedule re-renders the countdown each half-second while running,
+        // and rarely otherwise — without the engine mutating state per second.
+        TimelineView(.periodic(from: .now, by: pomodoro.running ? 0.5 : 3600)) { context in
+            content(now: context.date)
+        }
+    }
+
+    private func content(now: Date) -> some View {
         VStack(spacing: compact ? 16 : 24) {
-            ring
+            ring(now: now)
             dots
             controls
         }
@@ -200,20 +216,20 @@ struct PomodoroView: View {
         .tint(color)
     }
 
-    private var ring: some View {
-        ZStack {
+    private func ring(now: Date) -> some View {
+        let fraction = pomodoro.phase == .idle ? 1 : pomodoro.fraction(at: now)
+        let time = pomodoro.phase == .idle ? "\(pomodoro.workMinutes):00" : pomodoro.timeString(at: now)
+        return ZStack {
             Circle().stroke(.quaternary, lineWidth: lineWidth)
             Circle()
-                .trim(from: 0, to: pomodoro.phase == .idle ? 1 : pomodoro.fraction)
+                .trim(from: 0, to: fraction)
                 .stroke(color.gradient, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                 .rotationEffect(.degrees(-90))
-                .shadow(color: color.opacity(0.35), radius: 7)
-                .animation(.linear(duration: 0.95), value: pomodoro.fraction)
+                .shadow(color: color.opacity(0.3), radius: 6)
             VStack(spacing: 5) {
-                Text(pomodoro.phase == .idle ? "\(pomodoro.workMinutes):00" : pomodoro.timeString)
+                Text(time)
                     .font(.system(size: ringSize * 0.21, weight: .semibold, design: .rounded))
                     .monospacedDigit()
-                    .contentTransition(.numericText())
                 Text(pomodoro.phase.title.uppercased())
                     .font(.caption2.weight(.semibold))
                     .tracking(2.5)

@@ -124,7 +124,9 @@ struct DecksApp: App {
             if pomodoro.phase == .idle {
                 Image(systemName: "timer")
             } else {
-                Text(pomodoro.timeString)
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    Text(pomodoro.timeString(at: context.date))
+                }
             }
         }
         .menuBarExtraStyle(.window)
