@@ -183,7 +183,11 @@ final class RemindersSyncEngine {
     private func fetchRemotes(in calendar: EKCalendar) async -> [RemindersMerge.Remote]? {
         let predicate = eventStore.predicateForReminders(in: [calendar])
         return await withCheckedContinuation { continuation in
-            eventStore.fetchReminders(matching: predicate) { reminders in
+            // EventKit calls this completion on a background queue. Mark it
+            // @Sendable so it isn't inferred as MainActor-isolated, which traps
+            // (swift_task_checkIsolated) under the release toolchain's stricter
+            // concurrency checking.
+            eventStore.fetchReminders(matching: predicate) { @Sendable reminders in
                 guard let reminders else {
                     continuation.resume(returning: nil)
                     return

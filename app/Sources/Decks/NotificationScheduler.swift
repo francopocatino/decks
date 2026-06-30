@@ -86,7 +86,9 @@ final class NotificationScheduler {
         // on every relaunch inside its window. Map to ids inside the callback
         // to keep the non-Sendable UNNotification off the continuation.
         let delivered: Set<String> = await withCheckedContinuation { continuation in
-            center.getDeliveredNotifications { notifications in
+            // Runs on a background queue; @Sendable keeps it from being inferred
+            // MainActor-isolated (which traps under strict concurrency checking).
+            center.getDeliveredNotifications { @Sendable notifications in
                 continuation.resume(returning: Set(notifications.map(\.request.identifier)))
             }
         }
