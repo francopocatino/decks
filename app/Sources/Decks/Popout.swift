@@ -6,12 +6,15 @@ import SwiftUI
 struct DeckSectionView: View {
     let slug: String
     let section: DeckSection
+    // The pop-out hides the editor sections' own header for a focused, single-bar
+    // surface; the tiling panes keep it.
+    var chrome = true
 
     var body: some View {
         switch section {
-        case .daily: DailyView(slug: slug)
+        case .daily: DailyView(slug: slug, chrome: chrome)
         case .todos: TodosView(slug: slug)
-        case .notes: NotesView(slug: slug)
+        case .notes: NotesView(slug: slug, chrome: chrome)
         case .links: LinksView(slug: slug)
         case .meetings: MeetingsView(slug: slug)
         case .time: TimeView(slug: slug)
@@ -139,7 +142,7 @@ private struct PopoutView: View {
         VStack(spacing: 0) {
             header
             Divider()
-            DeckSectionView(slug: slug, section: section)
+            DeckSectionView(slug: slug, section: section, chrome: false)
         }
         .tint(accent ?? .accentColor)
     }
