@@ -64,6 +64,9 @@ final class PopoutManager {
         .background(.regularMaterial)
 
         let hosting = NSHostingController(rootView: content)
+        // Fill the whole window, including the transparent title-bar band, so
+        // the title strip sits at the very top instead of below an empty gap.
+        hosting.safeAreaRegions = []
         panel.contentViewController = hosting
         // Titled (not borderless) so the window's frame view supplies native
         // edge resizing and its cursors at any level — a borderless panel loses
@@ -175,8 +178,9 @@ private struct PopoutView: View {
             .foregroundStyle(pinned ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
             .help(pinned ? "Floating on top — click to unpin" : "Pin to float on top")
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
+        .padding(.horizontal, 12)
+        .padding(.top, 9)
+        .padding(.bottom, 6)
         .contentShape(Rectangle())
     }
 }
