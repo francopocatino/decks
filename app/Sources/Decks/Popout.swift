@@ -144,19 +144,20 @@ private struct PopoutView: View {
         .tint(accent ?? .accentColor)
     }
 
+    // A thin title strip, sized like a window title bar so it reads as window
+    // chrome rather than a second toolbar above the section's own header.
     private var header: some View {
         HStack(spacing: 8) {
             Button(action: onClose) {
-                Image(systemName: "xmark")
-                    .font(.caption.weight(.semibold))
+                Image(systemName: "xmark").font(.caption2.weight(.bold))
             }
             .buttonStyle(.borderless)
             .help("Close")
 
-            Label(section.title, systemImage: section.symbol)
-                .font(.subheadline.weight(.medium))
-            Text(deckName)
-                .font(.subheadline)
+            Spacer()
+
+            Text("\(section.title) · \(deckName)")
+                .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
 
             Spacer()
@@ -165,15 +166,14 @@ private struct PopoutView: View {
                 pinned.toggle()
                 setPinned(pinned)
             } label: {
-                Image(systemName: pinned ? "pin.fill" : "pin")
-                    .font(.caption)
+                Image(systemName: pinned ? "pin.fill" : "pin").font(.caption2)
             }
             .buttonStyle(.borderless)
             .foregroundStyle(pinned ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
             .help(pinned ? "Floating on top — click to unpin" : "Pin to float on top")
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
         .contentShape(Rectangle())
     }
 }
