@@ -4,6 +4,7 @@ struct NotesView: View {
     @Environment(DecksStore.self) private var store
     @Environment(IdentityStore.self) private var identity
     let slug: String
+    var chrome = true
     @State private var working = false
     @State private var aiError: String?
     @State private var editor = MarkdownEditorController()
@@ -11,7 +12,7 @@ struct NotesView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            header
+            if chrome { header }
             MarkdownEditor(text: notesBinding, controller: editor, accent: accent)
         }
         .alert("Couldn't polish", isPresented: aiErrorBinding) {

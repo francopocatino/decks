@@ -15,6 +15,7 @@ struct DecksApp: App {
     @State private var tracker: TimeTrackingEngine
     @State private var spotlight: SpotlightIndexer
     @State private var mirror: CloudMirrorEngine
+    @State private var popout: PopoutManager
     @State private var hotkey = HotkeyManager()
     @State private var capturePanel: QuickCapturePanel
     @AppStorage("appearance") private var appearance: AppAppearance = .system
@@ -36,6 +37,7 @@ struct DecksApp: App {
         _tracker = State(initialValue: tracker)
         _spotlight = State(initialValue: spotlight)
         _mirror = State(initialValue: mirror)
+        _popout = State(initialValue: PopoutManager(store: store, identity: identity, tracker: tracker))
         _capturePanel = State(initialValue: QuickCapturePanel(store: store))
         // Single eviction point for every per-deck cache and engine, so an
         // external (CLI/Finder) delete cleans up the same as the in-app one.
@@ -61,6 +63,7 @@ struct DecksApp: App {
                 .environment(tracker)
                 .environment(spotlight)
                 .environment(mirror)
+                .environment(popout)
                 .onContinueUserActivity(CSSearchableItemActionType) { activity in
                     guard
                         let identifier = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String,

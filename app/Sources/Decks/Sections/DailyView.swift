@@ -5,6 +5,7 @@ struct DailyView: View {
     @Environment(DecksStore.self) private var store
     @Environment(IdentityStore.self) private var identity
     let slug: String
+    var chrome = true
     @State private var working = false
     @State private var aiError: String?
     @State private var editor = MarkdownEditorController()
@@ -12,7 +13,7 @@ struct DailyView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            header
+            if chrome { header }
             MarkdownEditor(text: dailyBinding, controller: editor, accent: accent)
         }
         .alert("Couldn't draft", isPresented: aiErrorBinding) {

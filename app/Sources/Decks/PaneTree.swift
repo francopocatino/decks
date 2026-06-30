@@ -50,6 +50,7 @@ struct PaneTreeView: View {
 }
 
 private struct LeafPane: View {
+    @Environment(PopoutManager.self) private var popout
     let slug: String
     let section: DeckSection
     let canSplit: Bool
@@ -83,6 +84,12 @@ private struct LeafPane: View {
 
             Spacer()
 
+            Button { popout.open(slug: slug, section: section) } label: {
+                Image(systemName: "macwindow.badge.plus")
+            }
+            .buttonStyle(.borderless)
+            .help("Open in a floating window")
+
             if canSplit {
                 Button { onSplit(.horizontal) } label: {
                     Image(systemName: "rectangle.split.2x1")
@@ -109,16 +116,8 @@ private struct LeafPane: View {
         .padding(.vertical, 8)
     }
 
-    @ViewBuilder
     private var content: some View {
-        switch section {
-        case .daily: DailyView(slug: slug)
-        case .todos: TodosView(slug: slug)
-        case .notes: NotesView(slug: slug)
-        case .links: LinksView(slug: slug)
-        case .meetings: MeetingsView(slug: slug)
-        case .time: TimeView(slug: slug)
-        }
+        DeckSectionView(slug: slug, section: section)
     }
 }
 
