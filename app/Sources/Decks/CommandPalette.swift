@@ -42,14 +42,15 @@ struct CommandPalette: View {
                     ScrollView {
                         LazyVStack(spacing: 2) {
                             ForEach(Array(results.enumerated()), id: \.element.id) { index, item in
-                                row(item, index: index).id(index)
+                                row(item, index: index)
                             }
                         }
                         .padding(6)
                     }
                     .frame(maxHeight: 360)
                     .onChange(of: selection) { _, value in
-                        withAnimation(.easeOut(duration: 0.1)) { proxy.scrollTo(value, anchor: .center) }
+                        guard results.indices.contains(value) else { return }
+                        withAnimation(.easeOut(duration: 0.1)) { proxy.scrollTo(results[value].id, anchor: .center) }
                     }
                 }
             }
