@@ -111,7 +111,7 @@ struct QuickCaptureView: View {
                 Text("Focus").foregroundStyle(.secondary)
             } else {
                 Text(pomodoro.phase.title).foregroundStyle(.secondary)
-                TimelineView(.periodic(from: .now, by: 1)) { context in
+                TimelineView(.periodic(from: .timelineAnchor, by: 1)) { context in
                     Text(pomodoro.timeString(at: context.date)).monospacedDigit()
                 }
             }

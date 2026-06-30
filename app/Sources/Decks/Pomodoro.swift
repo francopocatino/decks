@@ -1,6 +1,12 @@
 import SwiftUI
 import UserNotifications
 
+extension Date {
+    // A fixed anchor for TimelineView schedules. `from: .now` re-evaluates on
+    // every render and reschedules in a tight loop, spinning the main thread.
+    static let timelineAnchor = Date(timeIntervalSinceReferenceDate: 0)
+}
+
 // A focus timer (not tracked time — the Time engine already logs real work).
 // Work → break → work, auto-cycling with a notification at each handoff.
 //
@@ -188,8 +194,6 @@ struct PomodoroView: View {
     @Environment(DecksStore.self) private var store
     var compact = false
 
-    @State private var anchor = Date()
-
     private var ringSize: CGFloat { compact ? 156 : 208 }
     private var lineWidth: CGFloat { compact ? 11 : 14 }
 
@@ -203,7 +207,7 @@ struct PomodoroView: View {
         // Anchor the schedule to a fixed date; `from: .now` re-evaluates every
         // render and reschedules in a loop. Updates each half-second while
         // running, rarely otherwise — the engine never mutates state per second.
-        TimelineView(.periodic(from: anchor, by: pomodoro.running ? 0.5 : 3600)) { context in
+        TimelineView(.periodic(from: .timelineAnchor, by: pomodoro.running ? 0.5 : 3600)) { context in
             content(now: context.date)
         }
     }
