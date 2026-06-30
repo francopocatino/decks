@@ -14,14 +14,16 @@
   <img src="https://img.shields.io/badge/macOS-15%2B-black.svg" alt="macOS 15+">
 </p>
 
-Each project or context you switch between is a *deck*. A deck holds four sections:
+Each project or context you switch between is a *deck*. A deck holds six sections:
 
 - **Daily** — a dated log for standups and things to bring up.
-- **To-dos** — what to do or review, with a checkbox.
+- **To-dos** — what to do or review, with checkboxes, optional due dates and reminders.
 - **Notes** — a free markdown scratchpad: decisions, people, context.
 - **Links** — quick access to repos, dashboards and docs.
+- **Meetings** — this deck's calendar events, today and upcoming, with one-click Join.
+- **Time** — focused time you've put into this context, by day.
 
-Open the app, pick the deck, and you are back where you left off — instead of digging through one giant notes file. Daily and Notes render markdown with an edit/preview toggle.
+Open the app, pick the deck, and you are back where you left off — instead of digging through one giant notes file. Daily and Notes use a live-styled markdown editor: it styles as you type, no edit/preview mode.
 
 ## Install
 
@@ -35,17 +37,44 @@ That builds a native `Decks.app`, installs it, and launches it. Right-click the 
 
 ## What it does
 
+**Organize**
+
 - Native macOS app (SwiftUI), no Electron.
-- One deck per project or context, with rename / archive / delete, drag-to-reorder, and a sidebar that shows open to-do counts.
-- Sub-decks: nest projects under a parent (one level). A sub-deck inherits the parent's connector, commit email, git provider and instructions when its own are empty, and sees the parent's links — to-dos and dailies stay per sub-deck.
-- Split the deck into panes (two columns, or a stacked pair beside a third) so you can keep, say, the daily and notes side by side with your to-dos.
-- Live sync: edits from the CLI or an agent show up in the open app within a second or two.
-- Per-deck identity: git provider and commit email, project folders, which connector the deck uses, and AI instructions (language, daily format, tone). Secrets live in the macOS Keychain.
-- Connectors: Claude or OpenAI power Ask; GitHub/GitLab tokens for the worklog. Configured in Settings, separated into AI and Git, secrets in the Keychain.
-- Ask this deck: an in-app chat scoped to one deck, with persistent memory.
+- One deck per project or context: rename / archive / delete, drag-to-reorder, a per-deck color, and a sidebar that shows open to-do counts.
+- Sub-decks: nest projects under a parent (one level). A sub-deck inherits the parent's connector, commit email, git provider, instructions and calendar when its own are empty, and sees the parent's links — to-dos and dailies stay per sub-deck.
+- Tiling layout: split a deck into up to four panes (right or down, resizable) so the daily, notes and to-dos sit side by side.
+
+**Move fast**
+
+- **Command palette (⌘K)** — fuzzy-jump to any deck or run an action.
+- **Quick capture** — a global hotkey (and a menu-bar item) drops a to-do or daily line into any deck without leaving what you're doing.
+- **Pop-out windows** — detach any section into a minimal floating window that stays on top, so the daily can sit next to a call.
+- **Today** — a cross-deck launchpad: a pulse card per deck (open/overdue to-dos, time today, next meeting, latest daily line) plus the full day's meeting agenda.
+- **Pomodoro** — a focus timer with a menu-bar countdown, a floating ring, and a global start/pause hotkey.
+
+**Apple stack**
+
+- Meetings from your calendars (EventKit), scoped per deck (today / upcoming); Join opens the meeting link.
+- Notifications: meeting alerts (configurable lead time, with Join) and to-do due alerts.
+- Apple Reminders two-way sync, opt-in per deck (to-dos and due dates).
+- Time tracking: attributes your awake, non-idle time to the active deck.
+- Spotlight indexing of decks, to-dos, links, notes and dailies.
+- Optional one-way iCloud Drive markdown mirror, readable from Files on iPhone.
+
+**AI & automation**
+
+- Contextual AI (the sparkles button): **Draft** a daily from the deck's open to-dos and notes, or **Polish** its notes — with an API-key Claude/OpenAI connector, or on-device Apple Intelligence when no key is set.
+- Per-deck identity: git provider and commit email, project folders, the deck's connector, and AI instructions (language, daily format, tone). Secrets live in the macOS Keychain.
 - A Rust CLI and an MCP server so Claude can read and write your decks.
-- Worklog: turn a day's git commits into a daily entry.
+- Worklog: turn a day's git commits (and your GitHub/GitLab pull/merge requests) into a daily entry.
+- Live sync: edits from the CLI or an agent show up in the open app within a second or two.
 - In-app update check; releases published on `v*` tags.
+
+## Contextual AI
+
+Daily and Notes each have a sparkles button. In **Daily** it drafts today's entry from the deck's open to-dos and notes; in **Notes** it polishes the current notes into cleaner markdown, keeping every piece of information. It uses the deck's AI connector — Claude or OpenAI, with the API key in the Keychain — when one is set, and otherwise falls back to on-device **Apple Intelligence**, so it still works without a key on a supported Mac.
+
+Each deck also carries free-form AI instructions (in deck settings) — language, daily format, tone. The drafter prepends them, and Claude reads them from `show_deck` over the MCP server, so a daily drafted in one deck comes out in English bullets while another comes out in Spanish prose, per deck. Login-mode Claude decks drive this through Claude Code over the MCP server instead of an in-app key.
 
 ## Claude integration (MCP)
 
@@ -64,12 +93,6 @@ Then ask Claude — in Claude Code or Claude Desktop — to operate any deck by 
 
 `decks mcp-config` prints the ready-to-paste config. To keep an account isolated, register a server **scoped** to one deck in that account's client only: `decks-mcp --deck <slug>` — it can never see another deck. The account boundary is which client/login you register the server in.
 
-## Ask this deck (in-app AI)
-
-Each deck has an Ask panel (the sparkles button) — a chat scoped to that deck. It answers only from that deck's own to-dos, daily, notes and links, keeps a persistent history, and uses that deck's connector. A deck's chat never sees another deck's content or connector. In-app chat needs an API-key connector — Claude or OpenAI (set in Settings, Cmd+,); Claude login-mode decks use Claude Code through the MCP server instead.
-
-Each deck also carries free-form AI instructions (in deck settings) — language, daily format, tone. Ask prepends them to its system prompt, and Claude reads them from `show_deck` over the MCP server, so a daily drafted in one deck comes out in English bullets while another comes out in Spanish prose, per deck.
-
 ## CLI
 
 The CLI reads and writes the same files as the app, and is the surface meant for automation.
@@ -85,7 +108,7 @@ cargo run -- daily acme "shipped auth"  # add a dated daily entry
 cargo run -- show acme --json           # machine-readable output
 ```
 
-Also: `link`/`unlink`, `remove`/`edit` (to-do), `reorder`/`set-parent`/`rename`/`archive`/`unarchive`/`delete` (deck), `worklog`, `which`. Every action is exposed as an MCP tool too.
+Also: `link`/`unlink`, `remove`/`edit` (to-do), `reorder`/`set-parent`/`rename`/`archive`/`unarchive`/`delete` (deck), `open`, `worklog`, `which`. Every action is exposed as an MCP tool too.
 
 ## Worklog
 
@@ -99,7 +122,7 @@ It runs `deck=$(decks which "$CLAUDE_PROJECT_DIR"); [ -n "$deck" ] && decks work
 
 ## How it stores data
 
-Everything is plain files under `~/.decks` (override with `DECKS_DIR`): JSON for structured data, markdown for free text. The on-disk format is the only contract between the app and the CLI — see [docs/format.md](docs/format.md).
+Everything is plain files under `~/.decks` (override with `DECKS_DIR`): JSON for structured data, markdown for free text. The on-disk format is the only contract between the app and the CLI — see [docs/format.md](docs/format.md). Secrets are never written to disk; they live in the macOS Keychain.
 
 ## Automation
 
@@ -109,6 +132,7 @@ Shortcuts (including Focus automations) and SSH from the iPhone or Watch can dri
 
 ```
 swift build  --package-path app                                  # app
+swift test   --package-path app
 cargo build  --manifest-path cli/Cargo.toml                      # cli + mcp
 cargo test   --manifest-path cli/Cargo.toml
 cargo fmt    --manifest-path cli/Cargo.toml --check

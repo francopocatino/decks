@@ -5,12 +5,16 @@ Everything lives under `~/.decks`, or under `$DECKS_DIR` when that is set.
 ```
 ~/.decks/
   state.json            { "active": "<slug>" }
+  order.json            array of slugs, sidebar order (most important first)
+  accounts.json         array of connectors (AI + Git); secrets stay in the Keychain
   <slug>/
     deck.json           deck metadata
     todos.json          array of to-dos
     links.json          array of links
     daily.md            free markdown, dated entries
     notes.md            free markdown
+    profile.json        per-deck identity (the Settings form is its only writer)
+    layout.json         the deck's pane-tiling tree
     reminders-sync.json app-internal Apple Reminders sync state
     time.json           seconds of context time per local day
 ```
@@ -24,6 +28,10 @@ them without extra work.
 ```json
 { "slug": "acme", "name": "Acme", "createdAt": "2026-06-08T20:00:00Z" }
 ```
+
+`archived` (bool), `parent` (a parent deck's slug, for sub-decks) and `color`
+are written only when set. New fields must stay optional and be preserved when
+rewriting the file.
 
 ## todos.json
 
@@ -54,3 +62,35 @@ its last-synced state in `reminders-sync.json` — leave that file alone.
   { "id": "UUID", "label": "Repo", "url": "https://github.com/...", "note": "" }
 ]
 ```
+
+## profile.json
+
+Per-deck identity. The app's Settings form is the only writer; the CLI reads it
+(and inherits unset fields from the parent deck).
+
+```json
+{
+  "gitProvider": "github",
+  "authorEmail": "me@acme.dev",
+  "folders": ["/Users/me/code/acme"],
+  "instructions": "Write the daily in English as Yesterday / Today / Blockers.",
+  "accountID": "UUID",
+  "gitConnectorID": "UUID",
+  "calendarSources": ["..."],
+  "remindersSync": true
+}
+```
+
+`accountID` / `gitConnectorID` reference entries in the root `accounts.json`;
+the matching secrets live in the macOS Keychain, never on disk. `calendarSources`
+and `remindersSync` are written only when set.
+
+## layout.json
+
+The deck's pane-tiling tree: a leaf names one section, a split holds an axis,
+the first child's size fraction, and two child nodes.
+
+## order.json
+
+A flat array of deck slugs giving the sidebar order, most important first.
+Slugs missing from it fall back to creation order.
