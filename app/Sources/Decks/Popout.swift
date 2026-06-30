@@ -89,12 +89,17 @@ final class PopoutManager {
         // Fill the whole window, including the transparent title-bar band, so
         // the title strip sits at the very top instead of below an empty gap.
         hosting.safeAreaRegions = []
-        // The panel sets its own size; don't let the hosting view drive the
-        // window's content-size extrema. Deriving them from animated content
-        // (the pomodoro ring while it ticks) re-enters the constraint pass and
-        // AppKit traps.
         hosting.sizingOptions = []
-        panel.contentViewController = hosting
+        // Host the SwiftUI view as a SUBVIEW, not the window's content view:
+        // when the hosting view IS the content view, AppKit derives the window's
+        // content-size extrema by re-evaluating the view, and dynamic content
+        // (the pomodoro ring) mutates the graph mid constraint pass and traps.
+        let container = NSView(frame: NSRect(origin: .zero, size: size))
+        hosting.view.frame = container.bounds
+        hosting.view.autoresizingMask = [.width, .height]
+        container.addSubview(hosting.view)
+        panel.hosting = hosting
+        panel.contentView = container
         // Titled (not borderless) so the window's frame view supplies native
         // edge resizing and its cursors at any level — a borderless panel loses
         // the resize cursor once it floats. The title bar is hidden, so it still
@@ -135,6 +140,7 @@ final class PopoutManager {
 final class PopoutPanel: NSPanel {
     let key: String
     var onClose: (() -> Void)?
+    var hosting: NSViewController?
 
     init(key: String) {
         self.key = key
