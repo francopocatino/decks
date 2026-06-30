@@ -30,10 +30,7 @@ struct CommandPalette: View {
                     .textFieldStyle(.plain)
                     .font(.title3)
                     .focused($focused)
-                    .onKeyPress(.downArrow) { move(1); return .handled }
-                    .onKeyPress(.upArrow) { move(-1); return .handled }
-                    .onKeyPress(.return) { runSelection(); return .handled }
-                    .onKeyPress(.escape) { isPresented = false; return .handled }
+                    .onSubmit { runSelection() }
                     .onChange(of: query) { _, _ in selection = 0 }
             }
             .padding(.horizontal, 16)
@@ -62,6 +59,12 @@ struct CommandPalette: View {
         .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(.primary.opacity(0.08)))
         .shadow(color: .black.opacity(0.28), radius: 28, y: 12)
         .onAppear { focused = true }
+        // Arrow/escape handling lives on the container, not the TextField:
+        // attaching .onKeyPress directly to the field suppresses its text
+        // binding so typing never reaches `query`.
+        .onKeyPress(.downArrow) { move(1); return .handled }
+        .onKeyPress(.upArrow) { move(-1); return .handled }
+        .onExitCommand { isPresented = false }
     }
 
     private enum Item: Identifiable {
