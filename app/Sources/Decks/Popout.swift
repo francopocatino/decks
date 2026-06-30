@@ -58,7 +58,7 @@ final class PopoutManager {
             ?? Color(red: 0.97, green: 0.37, blue: 0.34)
         present(
             key: "__pomodoro__",
-            title: "Pomodoro",
+            title: "",
             accent: accent,
             size: NSSize(width: 320, height: 384),
             content: PomodoroView()
@@ -201,11 +201,12 @@ private struct PopoutView<Content: View>: View {
 
             Spacer()
 
-            Text(title)
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.secondary)
-
-            Spacer()
+            if !title.isEmpty {
+                Text(title)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
 
             Button {
                 pinned.toggle()
@@ -217,9 +218,9 @@ private struct PopoutView<Content: View>: View {
             .foregroundStyle(pinned ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
             .help(pinned ? "Floating on top — click to unpin" : "Pin to float on top")
         }
-        .padding(.horizontal, 12)
-        .padding(.top, 9)
-        .padding(.bottom, 6)
+        .padding(.horizontal, 14)
+        .padding(.top, 12)
+        .padding(.bottom, 8)
         .contentShape(Rectangle())
     }
 }
