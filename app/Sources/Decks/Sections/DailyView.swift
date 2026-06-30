@@ -37,7 +37,7 @@ struct DailyView: View {
                     if working {
                         ProgressView().controlSize(.small)
                     } else {
-                        Label("Draft", systemImage: "sparkles")
+                        Image(systemName: "sparkles")
                     }
                 }
                 .buttonStyle(.borderless)
@@ -45,12 +45,17 @@ struct DailyView: View {
                 .help("Draft today's entry with AI from open to-dos and notes")
             }
 
+            // A horizontal scroll keeps the format buttons from overflowing and
+            // overlapping the trailing controls when the pane is narrow.
             if showToolbar {
                 Divider().frame(height: 14)
-                MarkdownFormatButtons(controller: editor)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    MarkdownFormatButtons(controller: editor)
+                }
+                .frame(height: 22)
+            } else {
+                Spacer()
             }
-
-            Spacer()
 
             if !store.daily(slug).isEmpty {
                 Button(action: copyToday) {

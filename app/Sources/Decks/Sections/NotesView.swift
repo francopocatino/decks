@@ -28,7 +28,7 @@ struct NotesView: View {
                     if working {
                         ProgressView().controlSize(.small)
                     } else {
-                        Label("Polish", systemImage: "sparkles")
+                        Image(systemName: "sparkles")
                     }
                 }
                 .buttonStyle(.borderless)
@@ -39,10 +39,16 @@ struct NotesView: View {
                     Divider().frame(height: 14)
                 }
             }
+            // A horizontal scroll keeps the format buttons from overflowing and
+            // overlapping the trailing control when the pane is narrow.
             if showToolbar {
-                MarkdownFormatButtons(controller: editor)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    MarkdownFormatButtons(controller: editor)
+                }
+                .frame(height: 22)
+            } else {
+                Spacer()
             }
-            Spacer()
             Button {
                 showToolbar.toggle()
             } label: {
