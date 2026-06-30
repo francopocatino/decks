@@ -89,6 +89,11 @@ final class PopoutManager {
         // Fill the whole window, including the transparent title-bar band, so
         // the title strip sits at the very top instead of below an empty gap.
         hosting.safeAreaRegions = []
+        // The panel sets its own size; don't let the hosting view drive the
+        // window's content-size extrema. Deriving them from animated content
+        // (the pomodoro ring while it ticks) re-enters the constraint pass and
+        // AppKit traps.
+        hosting.sizingOptions = []
         panel.contentViewController = hosting
         // Titled (not borderless) so the window's frame view supplies native
         // edge resizing and its cursors at any level — a borderless panel loses
