@@ -54,10 +54,12 @@ final class PopoutManager {
     }
 
     func openPomodoro() {
+        let accent = store.activeDeck.flatMap { store.accentTint(for: $0) }
+            ?? Color(red: 0.97, green: 0.37, blue: 0.34)
         present(
             key: "__pomodoro__",
             title: "Pomodoro",
-            accent: nil,
+            accent: accent,
             size: NSSize(width: 320, height: 384),
             content: PomodoroView()
         )
@@ -190,6 +192,7 @@ private struct PopoutView<Content: View>: View {
                 Image(systemName: "xmark").font(.caption2.weight(.bold))
             }
             .buttonStyle(.borderless)
+            .foregroundStyle(.secondary)
             .help("Close")
 
             Spacer()

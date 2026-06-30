@@ -188,6 +188,8 @@ struct PomodoroView: View {
     @Environment(DecksStore.self) private var store
     var compact = false
 
+    @State private var anchor = Date()
+
     private var ringSize: CGFloat { compact ? 156 : 208 }
     private var lineWidth: CGFloat { compact ? 11 : 14 }
 
@@ -198,9 +200,10 @@ struct PomodoroView: View {
     }
 
     var body: some View {
-        // The schedule re-renders the countdown each half-second while running,
-        // and rarely otherwise — without the engine mutating state per second.
-        TimelineView(.periodic(from: .now, by: pomodoro.running ? 0.5 : 3600)) { context in
+        // Anchor the schedule to a fixed date; `from: .now` re-evaluates every
+        // render and reschedules in a loop. Updates each half-second while
+        // running, rarely otherwise — the engine never mutates state per second.
+        TimelineView(.periodic(from: anchor, by: pomodoro.running ? 0.5 : 3600)) { context in
             content(now: context.date)
         }
     }
