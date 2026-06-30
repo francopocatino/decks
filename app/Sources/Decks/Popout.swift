@@ -58,20 +58,21 @@ final class PopoutManager {
         .environment(store)
         .environment(identity)
         .environment(tracker)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(.separator, lineWidth: 1)
-        }
+        .background(.regularMaterial)
 
         let hosting = NSHostingController(rootView: content)
         panel.contentViewController = hosting
-        panel.styleMask = [.borderless, .resizable, .nonactivatingPanel]
-        panel.isOpaque = false
-        panel.backgroundColor = .clear
-        panel.hasShadow = true
-        hosting.view.layer?.backgroundColor = NSColor.clear.cgColor
+        // Titled (not borderless) so the window's frame view supplies native
+        // edge resizing and its cursors at any level — a borderless panel loses
+        // the resize cursor once it floats. The title bar is hidden, so it still
+        // reads as a chromeless minimal window.
+        panel.titlebarAppearsTransparent = true
+        panel.titleVisibility = .hidden
+        panel.standardWindowButton(.closeButton)?.isHidden = true
+        panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
+        panel.standardWindowButton(.zoomButton)?.isHidden = true
         panel.isMovableByWindowBackground = true
+        panel.acceptsMouseMovedEvents = true
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.hidesOnDeactivate = false
@@ -104,7 +105,12 @@ final class PopoutPanel: NSPanel {
 
     init(key: String) {
         self.key = key
-        super.init(contentRect: .zero, styleMask: [.borderless], backing: .buffered, defer: false)
+        super.init(
+            contentRect: NSRect(x: 0, y: 0, width: 440, height: 560),
+            styleMask: [.titled, .closable, .resizable, .fullSizeContentView, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
     }
 
     override var canBecomeKey: Bool { true }
@@ -136,7 +142,6 @@ private struct PopoutView: View {
             DeckSectionView(slug: slug, section: section)
         }
         .tint(accent ?? .accentColor)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private var header: some View {
