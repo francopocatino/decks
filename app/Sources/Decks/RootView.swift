@@ -24,21 +24,7 @@ struct RootView: View {
         NavigationSplitView {
             sidebar
         } detail: {
-            if showingToday {
-                TodayView(onOpenDeck: { slug in
-                    showingToday = false
-                    store.select(slug)
-                })
-            } else if let deck = store.activeDeck {
-                DeckDetailView(deck: deck)
-                    .id(deck.slug)
-            } else {
-                ContentUnavailableView(
-                    "No deck yet",
-                    systemImage: "rectangle.stack.badge.plus",
-                    description: Text("Create one for each project or context you switch between.")
-                )
-            }
+            detail
         }
         .onChange(of: store.activeSlug) { _, _ in showingToday = false }
         .sheet(isPresented: $showingNewDeck) {
@@ -107,6 +93,25 @@ struct RootView: View {
                     .help("Install version \(update.version) and relaunch")
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private var detail: some View {
+        if showingToday {
+            TodayView(onOpenDeck: { slug in
+                showingToday = false
+                store.select(slug)
+            })
+        } else if let deck = store.activeDeck {
+            DeckDetailView(deck: deck)
+                .id(deck.slug)
+        } else {
+            ContentUnavailableView(
+                "No deck yet",
+                systemImage: "rectangle.stack.badge.plus",
+                description: Text("Create one for each project or context you switch between.")
+            )
         }
     }
 
