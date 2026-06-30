@@ -21,6 +21,7 @@ struct DecksApp: App {
     @State private var capturePanel: QuickCapturePanel
     @AppStorage("appearance") private var appearance: AppAppearance = .system
     @AppStorage(Pref.captureHotkey) private var captureHotkey: HotkeyOption = .ctrlOptSpace
+    @AppStorage(Pref.pomodoroHotkey) private var pomodoroHotkey: HotkeyOption = .ctrlOptP
 
     init() {
         let store = DecksStore()
@@ -41,7 +42,7 @@ struct DecksApp: App {
         _mirror = State(initialValue: mirror)
         _pomodoro = State(initialValue: pomodoro)
         _popout = State(initialValue: PopoutManager(store: store, identity: identity, tracker: tracker, pomodoro: pomodoro))
-        _capturePanel = State(initialValue: QuickCapturePanel(store: store))
+        _capturePanel = State(initialValue: QuickCapturePanel(store: store, pomodoro: pomodoro))
         // Single eviction point for every per-deck cache and engine, so an
         // external (CLI/Finder) delete cleans up the same as the in-app one.
         store.onDeckRemoved = { slug in
@@ -78,11 +79,15 @@ struct DecksApp: App {
                 }
                 .onAppear {
                     NSApp.appearance = appearance.nsAppearance
-                    hotkey.apply(captureHotkey) { [capturePanel] in capturePanel.toggle() }
+                    hotkey.apply(captureHotkey, id: 1) { [capturePanel] in capturePanel.toggle() }
+                    hotkey.apply(pomodoroHotkey, id: 2) { [pomodoro] in pomodoro.toggle() }
                 }
                 .onChange(of: appearance) { _, value in NSApp.appearance = value.nsAppearance }
                 .onChange(of: captureHotkey) { _, value in
-                    hotkey.apply(value) { [capturePanel] in capturePanel.toggle() }
+                    hotkey.apply(value, id: 1) { [capturePanel] in capturePanel.toggle() }
+                }
+                .onChange(of: pomodoroHotkey) { _, value in
+                    hotkey.apply(value, id: 2) { [pomodoro] in pomodoro.toggle() }
                 }
                 .task { await updates.check() }
         }
@@ -100,6 +105,7 @@ struct DecksApp: App {
         MenuBarExtra("Decks", systemImage: "rectangle.stack") {
             QuickCaptureView()
                 .environment(store)
+                .environment(pomodoro)
         }
         .menuBarExtraStyle(.window)
 
