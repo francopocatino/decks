@@ -16,10 +16,12 @@ struct DecksApp: App {
     @State private var spotlight: SpotlightIndexer
     @State private var mirror: CloudMirrorEngine
     @State private var popout: PopoutManager
+    @State private var pomodoro: PomodoroEngine
     @State private var hotkey = HotkeyManager()
     @State private var capturePanel: QuickCapturePanel
     @AppStorage("appearance") private var appearance: AppAppearance = .system
     @AppStorage(Pref.captureHotkey) private var captureHotkey: HotkeyOption = .ctrlOptSpace
+    @AppStorage(Pref.pomodoroHotkey) private var pomodoroHotkey: HotkeyOption = .ctrlOptP
 
     init() {
         let store = DecksStore()
@@ -29,6 +31,7 @@ struct DecksApp: App {
         let tracker = TimeTrackingEngine(store: store)
         let spotlight = SpotlightIndexer(store: store)
         let mirror = CloudMirrorEngine(store: store)
+        let pomodoro = PomodoroEngine()
         _store = State(initialValue: store)
         _identity = State(initialValue: identity)
         _chat = State(initialValue: chat)
@@ -37,8 +40,9 @@ struct DecksApp: App {
         _tracker = State(initialValue: tracker)
         _spotlight = State(initialValue: spotlight)
         _mirror = State(initialValue: mirror)
-        _popout = State(initialValue: PopoutManager(store: store, identity: identity, tracker: tracker))
-        _capturePanel = State(initialValue: QuickCapturePanel(store: store))
+        _pomodoro = State(initialValue: pomodoro)
+        _popout = State(initialValue: PopoutManager(store: store, identity: identity, tracker: tracker, pomodoro: pomodoro))
+        _capturePanel = State(initialValue: QuickCapturePanel(store: store, pomodoro: pomodoro))
         // Single eviction point for every per-deck cache and engine, so an
         // external (CLI/Finder) delete cleans up the same as the in-app one.
         store.onDeckRemoved = { slug in
@@ -64,6 +68,7 @@ struct DecksApp: App {
                 .environment(spotlight)
                 .environment(mirror)
                 .environment(popout)
+                .environment(pomodoro)
                 .onContinueUserActivity(CSSearchableItemActionType) { activity in
                     guard
                         let identifier = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String,
@@ -74,11 +79,21 @@ struct DecksApp: App {
                 }
                 .onAppear {
                     NSApp.appearance = appearance.nsAppearance
-                    hotkey.apply(captureHotkey) { [capturePanel] in capturePanel.toggle() }
+                    hotkey.apply(captureHotkey, id: 1) { [capturePanel] in capturePanel.toggle() }
+                    hotkey.apply(pomodoroHotkey, id: 2) { [pomodoro, popout] in
+                        pomodoro.toggle()
+                        popout.openPomodoro()
+                    }
                 }
                 .onChange(of: appearance) { _, value in NSApp.appearance = value.nsAppearance }
                 .onChange(of: captureHotkey) { _, value in
-                    hotkey.apply(value) { [capturePanel] in capturePanel.toggle() }
+                    hotkey.apply(value, id: 1) { [capturePanel] in capturePanel.toggle() }
+                }
+                .onChange(of: pomodoroHotkey) { _, value in
+                    hotkey.apply(value, id: 2) { [pomodoro, popout] in
+                        pomodoro.toggle()
+                        popout.openPomodoro()
+                    }
                 }
                 .task { await updates.check() }
         }
@@ -96,6 +111,21 @@ struct DecksApp: App {
         MenuBarExtra("Decks", systemImage: "rectangle.stack") {
             QuickCaptureView()
                 .environment(store)
+                .environment(pomodoro)
+        }
+        .menuBarExtraStyle(.window)
+
+        MenuBarExtra {
+            PomodoroView(compact: true)
+                .environment(pomodoro)
+                .environment(store)
+                .frame(width: 264)
+        } label: {
+            if pomodoro.phase == .idle {
+                Image(systemName: "timer")
+            } else {
+                PomodoroTimeLabel(pomodoro: pomodoro)
+            }
         }
         .menuBarExtraStyle(.window)
 

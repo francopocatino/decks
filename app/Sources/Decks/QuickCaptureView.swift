@@ -2,6 +2,7 @@ import SwiftUI
 
 struct QuickCaptureView: View {
     @Environment(DecksStore.self) private var store
+    @Environment(PomodoroEngine.self) private var pomodoro
     var focusOnAppear = false
     var onDone: (() -> Void)?
     @State private var slug: String?
@@ -86,6 +87,10 @@ struct QuickCaptureView: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
+
+            Divider()
+
+            focusStrip
         }
         .frame(width: 400)
         .tint(selectedDeck.flatMap { store.accentTint(for: $0) } ?? .accentColor)
@@ -97,6 +102,28 @@ struct QuickCaptureView: View {
                 Task { fieldFocused = true }
             }
         }
+    }
+
+    private var focusStrip: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "timer").foregroundStyle(.secondary)
+            if pomodoro.phase == .idle {
+                Text("Focus").foregroundStyle(.secondary)
+            } else {
+                Text(pomodoro.phase.title).foregroundStyle(.secondary)
+                PomodoroTimeLabel(pomodoro: pomodoro)
+            }
+            Spacer()
+            Button { pomodoro.toggle() } label: {
+                Image(systemName: pomodoro.running ? "pause.fill" : "play.fill")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .help(pomodoro.running ? "Pause focus" : "Start focus")
+        }
+        .font(.callout)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
     }
 
     private var trimmed: String {

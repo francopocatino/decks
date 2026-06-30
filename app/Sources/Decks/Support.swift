@@ -8,6 +8,7 @@ enum Pref {
     static let dueAlerts = "dueAlerts"
     static let icloudMirror = "icloudMirror"
     static let captureHotkey = "captureHotkey"
+    static let pomodoroHotkey = "pomodoroHotkey"
     static let markdownToolbar = "markdownToolbar"
     static let spotlightIndexed = "spotlightIndexedDecks"
     static let cloudMirrorFiles = "cloudMirrorFiles"

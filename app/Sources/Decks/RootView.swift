@@ -9,6 +9,8 @@ struct RootView: View {
     @Environment(TimeTrackingEngine.self) private var tracker
     @Environment(SpotlightIndexer.self) private var spotlight
     @Environment(CloudMirrorEngine.self) private var mirror
+    @Environment(PopoutManager.self) private var popout
+    @Environment(PomodoroEngine.self) private var pomodoro
     @Environment(\.openSettings) private var openSettings
     @State private var showingNewDeck = false
     @State private var newDeckName = ""
@@ -225,6 +227,12 @@ struct RootView: View {
         [
             CommandAction(id: "today", title: "Today", subtitle: "Overview across decks", symbol: "sun.max") {
                 showingToday = true
+            },
+            CommandAction(id: "pomodoro", title: "Pomodoro", subtitle: "Open the focus timer", symbol: "timer") {
+                popout.openPomodoro()
+            },
+            CommandAction(id: "pomodoro-toggle", title: pomodoro.running ? "Pause focus" : "Start focus", subtitle: nil, symbol: pomodoro.running ? "pause" : "play") {
+                pomodoro.toggle()
             },
             CommandAction(id: "new-deck", title: "New deck", subtitle: nil, symbol: "plus") {
                 startNewDeck(parent: nil)

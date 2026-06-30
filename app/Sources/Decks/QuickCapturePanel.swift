@@ -6,10 +6,12 @@ import SwiftUI
 @MainActor
 final class QuickCapturePanel {
     private let store: DecksStore
+    private let pomodoro: PomodoroEngine
     private var panel: CapturePanel?
 
-    init(store: DecksStore) {
+    init(store: DecksStore, pomodoro: PomodoroEngine) {
         self.store = store
+        self.pomodoro = pomodoro
     }
 
     func toggle() {
@@ -23,6 +25,7 @@ final class QuickCapturePanel {
     private func open() {
         let content = QuickCaptureView(focusOnAppear: true) { [weak self] in self?.close() }
             .environment(store)
+            .environment(pomodoro)
             .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)

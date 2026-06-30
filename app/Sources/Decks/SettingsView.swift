@@ -62,6 +62,10 @@ struct SettingsView: View {
 struct GeneralSettingsView: View {
     @AppStorage("appearance") private var appearance: AppAppearance = .system
     @AppStorage(Pref.captureHotkey) private var captureHotkey: HotkeyOption = .ctrlOptSpace
+    @AppStorage(Pref.pomodoroHotkey) private var pomodoroHotkey: HotkeyOption = .ctrlOptP
+    @AppStorage(PomodoroEngine.workKey) private var pomodoroWork = 25
+    @AppStorage(PomodoroEngine.shortKey) private var pomodoroShort = 5
+    @AppStorage(PomodoroEngine.longKey) private var pomodoroLong = 15
     @AppStorage(Pref.meetingAlerts) private var meetingAlerts = false
     @AppStorage(Pref.meetingAlertLead) private var meetingAlertLead = 2
     @AppStorage(Pref.dueAlerts) private var dueAlerts = false
@@ -95,6 +99,20 @@ struct GeneralSettingsView: View {
                 Text("Quick capture")
             } footer: {
                 Text("Opens the capture panel from anywhere, even when Decks is in the background.")
+            }
+            Section {
+                Picker("Start/pause hotkey", selection: $pomodoroHotkey) {
+                    ForEach(HotkeyOption.allCases) { option in
+                        Text(option.label).tag(option)
+                    }
+                }
+                Stepper("Focus: \(pomodoroWork) min", value: $pomodoroWork, in: 5 ... 90, step: 5)
+                Stepper("Short break: \(pomodoroShort) min", value: $pomodoroShort, in: 1 ... 30, step: 1)
+                Stepper("Long break: \(pomodoroLong) min", value: $pomodoroLong, in: 5 ... 45, step: 5)
+            } header: {
+                Text("Focus timer")
+            } footer: {
+                Text("A Pomodoro focus timer in the menu bar and as a floating window. The hotkey starts or pauses it from anywhere; a long break follows every four focus sessions.")
             }
             Section {
                 Toggle("Meeting alerts", isOn: alertsBinding($meetingAlerts))

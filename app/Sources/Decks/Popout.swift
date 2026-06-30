@@ -31,16 +31,41 @@ final class PopoutManager {
     @ObservationIgnored private let store: DecksStore
     @ObservationIgnored private let identity: IdentityStore
     @ObservationIgnored private let tracker: TimeTrackingEngine
+    @ObservationIgnored private let pomodoro: PomodoroEngine
     @ObservationIgnored private var panels: [String: PopoutPanel] = [:]
 
-    init(store: DecksStore, identity: IdentityStore, tracker: TimeTrackingEngine) {
+    init(store: DecksStore, identity: IdentityStore, tracker: TimeTrackingEngine, pomodoro: PomodoroEngine) {
         self.store = store
         self.identity = identity
         self.tracker = tracker
+        self.pomodoro = pomodoro
     }
 
     func open(slug: String, section: DeckSection) {
         let key = "\(slug)/\(section.rawValue)"
+        let accent = store.deck(slug).flatMap { store.accentTint(for: $0) }
+        present(
+            key: key,
+            title: "\(section.title) · \(store.deck(slug)?.name ?? slug)",
+            accent: accent,
+            size: NSSize(width: 440, height: 560),
+            content: DeckSectionView(slug: slug, section: section, chrome: false)
+        )
+    }
+
+    func openPomodoro() {
+        let accent = store.activeDeck.flatMap { store.accentTint(for: $0) }
+            ?? Color(red: 0.97, green: 0.37, blue: 0.34)
+        present(
+            key: "__pomodoro__",
+            title: "",
+            accent: accent,
+            size: NSSize(width: 320, height: 384),
+            content: PomodoroView()
+        )
+    }
+
+    private func present(key: String, title: String, accent: Color?, size: NSSize, content: some View) {
         if let existing = panels[key] {
             existing.makeKeyAndOrderFront(nil)
             return
@@ -49,25 +74,38 @@ final class PopoutManager {
         let panel = PopoutPanel(key: key)
         panel.onClose = { [weak self] in self?.panels[key] = nil }
 
-        let accent = store.deck(slug).flatMap { store.accentTint(for: $0) }
-        let content = PopoutView(
-            slug: slug,
-            section: section,
-            deckName: store.deck(slug)?.name ?? slug,
+        let view = PopoutView(
+            title: title,
             accent: accent,
             setPinned: { [weak panel] pinned in panel?.level = pinned ? .floating : .normal },
-            onClose: { [weak panel] in panel?.close() }
+            onClose: { [weak panel] in panel?.close() },
+            content: content
         )
         .environment(store)
         .environment(identity)
         .environment(tracker)
+        .environment(pomodoro)
         .background(.regularMaterial)
 
-        let hosting = NSHostingController(rootView: content)
+        let hosting = NSHostingController(rootView: view)
         // Fill the whole window, including the transparent title-bar band, so
         // the title strip sits at the very top instead of below an empty gap.
         hosting.safeAreaRegions = []
-        panel.contentViewController = hosting
+        hosting.sizingOptions = []
+        // Host the SwiftUI view as a SUBVIEW, not the window's content view:
+        // when the hosting view IS the content view, AppKit derives the window's
+        // content-size extrema by re-evaluating the view, and dynamic content
+        // (the pomodoro ring) mutates the graph mid constraint pass and traps.
+        let container = NSView(frame: NSRect(origin: .zero, size: size))
+        // Size the hosting view by frame, not Auto Layout: as constraint-based
+        // content it re-enters the constraint update cycle on every re-render
+        // (the pomodoro ring ticks), looping the layout pass.
+        hosting.view.translatesAutoresizingMaskIntoConstraints = true
+        hosting.view.frame = container.bounds
+        hosting.view.autoresizingMask = [.width, .height]
+        container.addSubview(hosting.view)
+        panel.hosting = hosting
+        panel.contentView = container
         // Titled (not borderless) so the window's frame view supplies native
         // edge resizing and its cursors at any level — a borderless panel loses
         // the resize cursor once it floats. The title bar is hidden, so it still
@@ -83,8 +121,8 @@ final class PopoutManager {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
-        panel.minSize = NSSize(width: 280, height: 220)
-        panel.setContentSize(NSSize(width: 440, height: 560))
+        panel.minSize = NSSize(width: 260, height: 200)
+        panel.setContentSize(size)
         positionCascading(panel)
 
         panels[key] = panel
@@ -108,6 +146,7 @@ final class PopoutManager {
 final class PopoutPanel: NSPanel {
     let key: String
     var onClose: (() -> Void)?
+    var hosting: NSViewController?
 
     init(key: String) {
         self.key = key
@@ -131,56 +170,78 @@ final class PopoutPanel: NSPanel {
     }
 }
 
-private struct PopoutView: View {
-    let slug: String
-    let section: DeckSection
-    let deckName: String
+private struct PopoutView<Content: View>: View {
+    let title: String
     let accent: Color?
     var setPinned: (Bool) -> Void
     var onClose: () -> Void
+    let content: Content
 
     @State private var pinned = true
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-            Divider()
-            DeckSectionView(slug: slug, section: section, chrome: false)
+        Group {
+            if title.isEmpty {
+                // No title (the pomodoro): float the controls over the content's
+                // top corners instead of a separate strip + divider.
+                content.overlay(alignment: .top) { floatingControls }
+            } else {
+                VStack(spacing: 0) {
+                    titleBar
+                    Divider()
+                    content
+                }
+            }
         }
         .tint(accent ?? .accentColor)
     }
 
+    private var closeButton: some View {
+        Button(action: onClose) {
+            Image(systemName: "xmark").font(.caption2.weight(.bold))
+        }
+        .buttonStyle(.borderless)
+        .foregroundStyle(.secondary)
+        .help("Close")
+    }
+
+    private var pinButton: some View {
+        Button {
+            pinned.toggle()
+            setPinned(pinned)
+        } label: {
+            Image(systemName: pinned ? "pin.fill" : "pin").font(.caption2)
+        }
+        .buttonStyle(.borderless)
+        .foregroundStyle(pinned ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+        .help(pinned ? "Floating on top — click to unpin" : "Pin to float on top")
+    }
+
     // A thin title strip, sized like a window title bar so it reads as window
     // chrome rather than a second toolbar above the section's own header.
-    private var header: some View {
+    private var titleBar: some View {
         HStack(spacing: 8) {
-            Button(action: onClose) {
-                Image(systemName: "xmark").font(.caption2.weight(.bold))
-            }
-            .buttonStyle(.borderless)
-            .help("Close")
-
+            closeButton
             Spacer()
-
-            Text("\(section.title) · \(deckName)")
+            Text(title)
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
-
             Spacer()
-
-            Button {
-                pinned.toggle()
-                setPinned(pinned)
-            } label: {
-                Image(systemName: pinned ? "pin.fill" : "pin").font(.caption2)
-            }
-            .buttonStyle(.borderless)
-            .foregroundStyle(pinned ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
-            .help(pinned ? "Floating on top — click to unpin" : "Pin to float on top")
+            pinButton
         }
-        .padding(.horizontal, 12)
-        .padding(.top, 9)
-        .padding(.bottom, 6)
+        .padding(.horizontal, 14)
+        .padding(.top, 12)
+        .padding(.bottom, 8)
         .contentShape(Rectangle())
+    }
+
+    private var floatingControls: some View {
+        HStack {
+            closeButton
+            Spacer()
+            pinButton
+        }
+        .padding(.horizontal, 14)
+        .padding(.top, 12)
     }
 }
