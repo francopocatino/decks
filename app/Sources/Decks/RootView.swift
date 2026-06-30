@@ -16,6 +16,7 @@ struct RootView: View {
     @State private var renaming: Deck?
     @State private var renameText = ""
     @State private var pendingDelete: Deck?
+    @State private var showingPalette = false
 
     var body: some View {
         NavigationSplitView {
@@ -123,6 +124,14 @@ struct RootView: View {
                 await notifications.tick()
             }
         }
+        .background {
+            Button("Command Palette") { showingPalette.toggle() }
+                .keyboardShortcut("k", modifiers: .command)
+                .opacity(0)
+                .accessibilityHidden(true)
+        }
+        .overlay { paletteOverlay }
+        .animation(.easeOut(duration: 0.12), value: showingPalette)
         .toolbar {
             if let update = updates.update {
                 ToolbarItem(placement: .primaryAction) {
@@ -174,6 +183,33 @@ struct RootView: View {
         newDeckName = ""
         newDeckParent = parent
         showingNewDeck = true
+    }
+
+    @ViewBuilder
+    private var paletteOverlay: some View {
+        if showingPalette {
+            ZStack(alignment: .top) {
+                Rectangle()
+                    .fill(.black.opacity(0.06))
+                    .ignoresSafeArea()
+                    .onTapGesture { showingPalette = false }
+                CommandPalette(isPresented: $showingPalette, actions: paletteActions)
+                    .padding(.top, 88)
+            }
+            .transition(.opacity)
+        }
+    }
+
+    private var paletteActions: [CommandAction] {
+        [
+            CommandAction(id: "new-deck", title: "New deck", subtitle: nil, symbol: "plus") {
+                startNewDeck(parent: nil)
+            },
+            CommandAction(id: "settings", title: "Open Settings", subtitle: nil, symbol: "gearshape") {
+                store.settingsSection = .general
+                openSettings()
+            },
+        ]
     }
 
     private func badge(for deck: Deck) -> Text? {
