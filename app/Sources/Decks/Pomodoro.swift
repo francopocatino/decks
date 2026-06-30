@@ -1,10 +1,19 @@
 import SwiftUI
 import UserNotifications
 
-extension Date {
-    // A fixed anchor for TimelineView schedules. `from: .now` re-evaluates on
-    // every render and reschedules in a tight loop, spinning the main thread.
-    static let timelineAnchor = Date(timeIntervalSinceReferenceDate: 0)
+// Live countdown text driven by a plain 1s timer. Avoids TimelineView, whose
+// periodic schedule iterates from its anchor and either reschedules in a loop
+// (anchor = .now) or spins for billions of steps (anchor far in the past).
+struct PomodoroTimeLabel: View {
+    let pomodoro: PomodoroEngine
+    @State private var now = Date()
+    private let clock = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+
+    var body: some View {
+        Text(pomodoro.timeString(at: now))
+            .monospacedDigit()
+            .onReceive(clock) { now = $0 }
+    }
 }
 
 // A focus timer (not tracked time — the Time engine already logs real work).
@@ -194,6 +203,9 @@ struct PomodoroView: View {
     @Environment(DecksStore.self) private var store
     var compact = false
 
+    @State private var now = Date()
+    private let clock = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+
     private var ringSize: CGFloat { compact ? 156 : 208 }
     private var lineWidth: CGFloat { compact ? 11 : 14 }
 
@@ -204,12 +216,8 @@ struct PomodoroView: View {
     }
 
     var body: some View {
-        // Anchor the schedule to a fixed date; `from: .now` re-evaluates every
-        // render and reschedules in a loop. Updates each half-second while
-        // running, rarely otherwise — the engine never mutates state per second.
-        TimelineView(.periodic(from: .timelineAnchor, by: pomodoro.running ? 0.5 : 3600)) { context in
-            content(now: context.date)
-        }
+        content(now: now)
+            .onReceive(clock) { now = $0 }
     }
 
     private func content(now: Date) -> some View {
