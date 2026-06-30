@@ -180,47 +180,68 @@ private struct PopoutView<Content: View>: View {
     @State private var pinned = true
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-            Divider()
-            content
+        Group {
+            if title.isEmpty {
+                // No title (the pomodoro): float the controls over the content's
+                // top corners instead of a separate strip + divider.
+                content.overlay(alignment: .top) { floatingControls }
+            } else {
+                VStack(spacing: 0) {
+                    titleBar
+                    Divider()
+                    content
+                }
+            }
         }
         .tint(accent ?? .accentColor)
     }
 
+    private var closeButton: some View {
+        Button(action: onClose) {
+            Image(systemName: "xmark").font(.caption2.weight(.bold))
+        }
+        .buttonStyle(.borderless)
+        .foregroundStyle(.secondary)
+        .help("Close")
+    }
+
+    private var pinButton: some View {
+        Button {
+            pinned.toggle()
+            setPinned(pinned)
+        } label: {
+            Image(systemName: pinned ? "pin.fill" : "pin").font(.caption2)
+        }
+        .buttonStyle(.borderless)
+        .foregroundStyle(pinned ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+        .help(pinned ? "Floating on top — click to unpin" : "Pin to float on top")
+    }
+
     // A thin title strip, sized like a window title bar so it reads as window
     // chrome rather than a second toolbar above the section's own header.
-    private var header: some View {
+    private var titleBar: some View {
         HStack(spacing: 8) {
-            Button(action: onClose) {
-                Image(systemName: "xmark").font(.caption2.weight(.bold))
-            }
-            .buttonStyle(.borderless)
-            .foregroundStyle(.secondary)
-            .help("Close")
-
+            closeButton
             Spacer()
-
-            if !title.isEmpty {
-                Text(title)
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.secondary)
-                Spacer()
-            }
-
-            Button {
-                pinned.toggle()
-                setPinned(pinned)
-            } label: {
-                Image(systemName: pinned ? "pin.fill" : "pin").font(.caption2)
-            }
-            .buttonStyle(.borderless)
-            .foregroundStyle(pinned ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
-            .help(pinned ? "Floating on top — click to unpin" : "Pin to float on top")
+            Text(title)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+            Spacer()
+            pinButton
         }
         .padding(.horizontal, 14)
         .padding(.top, 12)
         .padding(.bottom, 8)
         .contentShape(Rectangle())
+    }
+
+    private var floatingControls: some View {
+        HStack {
+            closeButton
+            Spacer()
+            pinButton
+        }
+        .padding(.horizontal, 14)
+        .padding(.top, 12)
     }
 }
