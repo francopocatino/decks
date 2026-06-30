@@ -31,16 +31,39 @@ final class PopoutManager {
     @ObservationIgnored private let store: DecksStore
     @ObservationIgnored private let identity: IdentityStore
     @ObservationIgnored private let tracker: TimeTrackingEngine
+    @ObservationIgnored private let pomodoro: PomodoroEngine
     @ObservationIgnored private var panels: [String: PopoutPanel] = [:]
 
-    init(store: DecksStore, identity: IdentityStore, tracker: TimeTrackingEngine) {
+    init(store: DecksStore, identity: IdentityStore, tracker: TimeTrackingEngine, pomodoro: PomodoroEngine) {
         self.store = store
         self.identity = identity
         self.tracker = tracker
+        self.pomodoro = pomodoro
     }
 
     func open(slug: String, section: DeckSection) {
         let key = "\(slug)/\(section.rawValue)"
+        let accent = store.deck(slug).flatMap { store.accentTint(for: $0) }
+        present(
+            key: key,
+            title: "\(section.title) · \(store.deck(slug)?.name ?? slug)",
+            accent: accent,
+            size: NSSize(width: 440, height: 560),
+            content: DeckSectionView(slug: slug, section: section, chrome: false)
+        )
+    }
+
+    func openPomodoro() {
+        present(
+            key: "__pomodoro__",
+            title: "Pomodoro",
+            accent: nil,
+            size: NSSize(width: 320, height: 384),
+            content: PomodoroView()
+        )
+    }
+
+    private func present(key: String, title: String, accent: Color?, size: NSSize, content: some View) {
         if let existing = panels[key] {
             existing.makeKeyAndOrderFront(nil)
             return
@@ -49,21 +72,20 @@ final class PopoutManager {
         let panel = PopoutPanel(key: key)
         panel.onClose = { [weak self] in self?.panels[key] = nil }
 
-        let accent = store.deck(slug).flatMap { store.accentTint(for: $0) }
-        let content = PopoutView(
-            slug: slug,
-            section: section,
-            deckName: store.deck(slug)?.name ?? slug,
+        let view = PopoutView(
+            title: title,
             accent: accent,
             setPinned: { [weak panel] pinned in panel?.level = pinned ? .floating : .normal },
-            onClose: { [weak panel] in panel?.close() }
+            onClose: { [weak panel] in panel?.close() },
+            content: content
         )
         .environment(store)
         .environment(identity)
         .environment(tracker)
+        .environment(pomodoro)
         .background(.regularMaterial)
 
-        let hosting = NSHostingController(rootView: content)
+        let hosting = NSHostingController(rootView: view)
         // Fill the whole window, including the transparent title-bar band, so
         // the title strip sits at the very top instead of below an empty gap.
         hosting.safeAreaRegions = []
@@ -83,8 +105,8 @@ final class PopoutManager {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
-        panel.minSize = NSSize(width: 280, height: 220)
-        panel.setContentSize(NSSize(width: 440, height: 560))
+        panel.minSize = NSSize(width: 260, height: 200)
+        panel.setContentSize(size)
         positionCascading(panel)
 
         panels[key] = panel
@@ -131,13 +153,12 @@ final class PopoutPanel: NSPanel {
     }
 }
 
-private struct PopoutView: View {
-    let slug: String
-    let section: DeckSection
-    let deckName: String
+private struct PopoutView<Content: View>: View {
+    let title: String
     let accent: Color?
     var setPinned: (Bool) -> Void
     var onClose: () -> Void
+    let content: Content
 
     @State private var pinned = true
 
@@ -145,7 +166,7 @@ private struct PopoutView: View {
         VStack(spacing: 0) {
             header
             Divider()
-            DeckSectionView(slug: slug, section: section, chrome: false)
+            content
         }
         .tint(accent ?? .accentColor)
     }
@@ -162,7 +183,7 @@ private struct PopoutView: View {
 
             Spacer()
 
-            Text("\(section.title) · \(deckName)")
+            Text(title)
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
 
