@@ -56,7 +56,7 @@ final class PomodoroEngine {
     var longMinutes: Int { minutes(Self.longKey, 15) }
 
     func remaining(at now: Date = Date()) -> TimeInterval {
-        if running, let endsAt { return max(0, endsAt.timeIntervalSince(now)) }
+        if running, let endsAt { return min(phaseTotal, max(0, endsAt.timeIntervalSince(now))) }
         return pausedRemaining
     }
 

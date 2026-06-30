@@ -97,6 +97,10 @@ final class PopoutManager {
         // content-size extrema by re-evaluating the view, and dynamic content
         // (the pomodoro ring) mutates the graph mid constraint pass and traps.
         let container = NSView(frame: NSRect(origin: .zero, size: size))
+        // Size the hosting view by frame, not Auto Layout: as constraint-based
+        // content it re-enters the constraint update cycle on every re-render
+        // (the pomodoro ring ticks), looping the layout pass.
+        hosting.view.translatesAutoresizingMaskIntoConstraints = true
         hosting.view.frame = container.bounds
         hosting.view.autoresizingMask = [.width, .height]
         container.addSubview(hosting.view)
