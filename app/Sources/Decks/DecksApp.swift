@@ -80,14 +80,20 @@ struct DecksApp: App {
                 .onAppear {
                     NSApp.appearance = appearance.nsAppearance
                     hotkey.apply(captureHotkey, id: 1) { [capturePanel] in capturePanel.toggle() }
-                    hotkey.apply(pomodoroHotkey, id: 2) { [pomodoro] in pomodoro.toggle() }
+                    hotkey.apply(pomodoroHotkey, id: 2) { [pomodoro, popout] in
+                        pomodoro.toggle()
+                        popout.openPomodoro()
+                    }
                 }
                 .onChange(of: appearance) { _, value in NSApp.appearance = value.nsAppearance }
                 .onChange(of: captureHotkey) { _, value in
                     hotkey.apply(value, id: 1) { [capturePanel] in capturePanel.toggle() }
                 }
                 .onChange(of: pomodoroHotkey) { _, value in
-                    hotkey.apply(value, id: 2) { [pomodoro] in pomodoro.toggle() }
+                    hotkey.apply(value, id: 2) { [pomodoro, popout] in
+                        pomodoro.toggle()
+                        popout.openPomodoro()
+                    }
                 }
                 .task { await updates.check() }
         }
