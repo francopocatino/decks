@@ -1,9 +1,9 @@
 import AppKit
 import SwiftUI
 
-// A launchpad across every deck: one card per context showing its pulse —
-// open and overdue to-dos, time today, next meeting, the latest daily line —
-// so you can survey all your contexts and jump into the right one.
+// A launchpad across every deck: a full cross-deck meeting agenda on top, then
+// one pulse card per context (open/overdue to-dos, time today, next meeting,
+// latest daily line) so you can survey everything and jump into the right one.
 struct TodayView: View {
     @Environment(DecksStore.self) private var store
     @Environment(IdentityStore.self) private var identity
@@ -11,6 +11,7 @@ struct TodayView: View {
     var onOpenDeck: (String) -> Void = { _ in }
 
     @State private var meetingsByDeck: [String: [Meeting]] = [:]
+    @State private var scope: CalendarService.Scope = .today
     @State private var now = Date()
     private let tick = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
 
@@ -19,7 +20,7 @@ struct TodayView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                if !upcoming.isEmpty { upcomingStrip }
+                agenda
                 LazyVGrid(columns: columns, alignment: .leading, spacing: 14) {
                     ForEach(store.topLevelVisibleDecks()) { deck in
                         card(deck)
@@ -29,37 +30,94 @@ struct TodayView: View {
             .padding(24)
         }
         .navigationTitle("Today")
-        .task(id: deckSignature) { await load() }
+        .task(id: reloadKey) { await load() }
         .onReceive(tick) { value in
             now = value
             Task { await load() }
         }
     }
 
-    // MARK: Up next
+    // MARK: Agenda
 
-    private var upcomingStrip: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("UP NEXT")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-            VStack(spacing: 0) {
-                ForEach(Array(upcoming.prefix(3))) { meeting in
-                    HStack(spacing: 10) {
-                        Text(meeting.start.formatted(date: .omitted, time: .shortened))
-                            .font(.callout.monospacedDigit())
-                            .foregroundStyle(.secondary)
-                            .frame(width: 64, alignment: .leading)
-                        Text(meeting.title)
-                        Spacer()
-                        if let link = meeting.link {
-                            Button("Join") { NSWorkspace.shared.open(link) }
-                        }
+    private var agenda: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("AGENDA")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Picker("", selection: $scope) {
+                    Text("Today").tag(CalendarService.Scope.today)
+                    Text("Upcoming").tag(CalendarService.Scope.upcoming)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
+                .controlSize(.small)
+            }
+
+            if agendaItems.isEmpty {
+                Text(emptyAgendaHint)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .padding(.vertical, 8)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(agendaItems) { item in
+                        agendaRow(item)
+                        if item.id != agendaItems.last?.id { Divider() }
                     }
-                    .padding(.vertical, 6)
-                    if meeting.id != upcoming.prefix(3).last?.id { Divider() }
                 }
             }
+        }
+    }
+
+    private func agendaRow(_ item: AgendaItem) -> some View {
+        HStack(spacing: 10) {
+            Text(item.meeting.start.formatted(date: .omitted, time: .shortened))
+                .font(.callout.monospacedDigit())
+                .foregroundStyle(.secondary)
+                .frame(width: 64, alignment: .leading)
+            DeckIcon(deck: item.deck, accent: store.accent(for: item.deck))
+            Text(item.meeting.title).lineLimit(1)
+            Spacer()
+            if let link = item.meeting.link {
+                Button("Join") { NSWorkspace.shared.open(link) }
+            }
+        }
+        .opacity(item.meeting.end < now ? 0.5 : 1)
+        .padding(.vertical, 6)
+        .contentShape(Rectangle())
+        .onTapGesture { onOpenDeck(item.deck.slug) }
+    }
+
+    private struct AgendaItem: Identifiable {
+        let meeting: Meeting
+        let deck: Deck
+        var id: String { meeting.id }
+    }
+
+    // Deduped across decks (a shared calendar is attributed to the first deck
+    // that lists it), sorted by start.
+    private var agendaItems: [AgendaItem] {
+        var seen: Set<String> = []
+        var items: [AgendaItem] = []
+        for deck in store.topLevelVisibleDecks() {
+            for meeting in meetingsByDeck[deck.slug] ?? [] where seen.insert(meeting.id).inserted {
+                items.append(AgendaItem(meeting: meeting, deck: deck))
+            }
+        }
+        return items.sorted { $0.meeting.start < $1.meeting.start }
+    }
+
+    private var emptyAgendaHint: String {
+        if !hasSources { return "No calendars selected on any deck — choose them in a deck's Settings." }
+        return scope == .today ? "Nothing on your calendars today." : "Nothing coming up."
+    }
+
+    private var hasSources: Bool {
+        store.topLevelVisibleDecks().contains {
+            !identity.effectiveCalendarSources(for: $0.slug, parent: $0.parent).isEmpty
         }
     }
 
@@ -129,14 +187,6 @@ struct TodayView: View {
             .min { $0.start < $1.start }
     }
 
-    private var upcoming: [Meeting] {
-        var seen: Set<String> = []
-        return meetingsByDeck.values
-            .flatMap { $0 }
-            .filter { $0.end >= now && seen.insert($0.id).inserted }
-            .sorted { $0.start < $1.start }
-    }
-
     private func latestDailyLine(_ slug: String) -> String? {
         for raw in store.daily(slug).split(separator: "\n", omittingEmptySubsequences: true) {
             let line = raw.trimmingCharacters(in: .whitespaces)
@@ -146,11 +196,13 @@ struct TodayView: View {
         return nil
     }
 
-    // Refetch when the set of decks or their calendar selection changes.
-    private var deckSignature: String {
-        store.topLevelVisibleDecks()
+    // Refetch when the scope, the set of decks, or their calendar selection changes.
+    private var reloadKey: String {
+        let scopeKey = scope == .today ? "today" : "upcoming"
+        let decks = store.topLevelVisibleDecks()
             .map { "\($0.slug):\(identity.effectiveCalendarSources(for: $0.slug, parent: $0.parent).sorted().joined(separator: "+"))" }
             .joined(separator: ",")
+        return "\(scopeKey)|\(decks)"
     }
 
     private func load() async {
@@ -158,7 +210,7 @@ struct TodayView: View {
         for deck in store.topLevelVisibleDecks() {
             let sources = identity.effectiveCalendarSources(for: deck.slug, parent: deck.parent)
             guard !sources.isEmpty else { continue }
-            result[deck.slug] = await CalendarService.meetings(sources: sources, scope: .today)
+            result[deck.slug] = await CalendarService.meetings(sources: sources, scope: scope)
         }
         meetingsByDeck = result
     }
