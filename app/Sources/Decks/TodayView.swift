@@ -72,7 +72,9 @@ struct TodayView: View {
                         }
                         ForEach(group.items) { item in
                             agendaRow(item)
-                            if item.id != group.items.last?.id { Divider() }
+                            // In Today's flat list dividers aid scanning; under
+                            // day headers they just clutter, so drop them there.
+                            if !showDayHeaders, item.id != group.items.last?.id { Divider() }
                         }
                     }
                 }
